@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🧱 霓虹打磚塊</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+<style>
+:root{--bg:#0a0f1a;--card:#111827;--border:#1f2937;--text:#e5e7eb;--muted:#9ca3af}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;overflow:hidden}
+
+.game-wrap{display:flex;height:100vh}
+.sidebar{width:260px;background:var(--card);border-right:1px solid var(--border);padding:16px;display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+.main-area{flex:1;display:flex;align-items:center;justify-content:center;position:relative}
+
+canvas{border-radius:12px;box-shadow:0 0 50px rgba(139,92,246,.12)}
+
+.stat-box{background:rgba(255,255,255,.03);border-radius:10px;padding:12px;margin-bottom:8px}
+.stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700}
+.stat-value{font-size:24px;font-weight:800}
+
+.powerup-row{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.03);margin-bottom:4px;font-size:13px}
+.powerup-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+.menu-overlay{position:absolute;inset:0;background:rgba(10,15,26,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(6px)}
+.menu-title{font-size:clamp(2rem,5vw,3.5rem);font-weight:900;background:linear-gradient(135deg,#f472b6,#8b5cf6,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+.btn-play{background:linear-gradient(135deg,#7c3aed,#a78bfa);border:none;color:#fff;font-weight:700;font-size:1.1rem;padding:14px 48px;border-radius:12px;transition:all .2s;cursor:pointer}
+.btn-play:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(139,92,246,.35);color:#fff}
+
+.hud{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;gap:12px;z-index:10}
+.hud-item{background:rgba(17,24,39,.85);border:1px solid var(--border);border-radius:10px;padding:5px 14px;font-size:13px;font-weight:600;backdrop-filter:blur(8px)}
+
+.toast-area{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);z-index:50}
+.game-toast{background:rgba(17,24,39,.9);border:1px solid var(--border);border-radius:10px;padding:8px 20px;font-size:14px;font-weight:600;white-space:nowrap;animation:toastIn .3s ease,toastOut .3s ease 1.5s forwards;backdrop-filter:blur(8px)}
+@keyframes toastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-10px)}}
+
+.setting-label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.level-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid}
+.combo-text{font-size:28px;font-weight:900;background:linear-gradient(135deg,#fbbf24,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+@media(max-width:768px){
+  .game-wrap{flex-direction:column}
+  .sidebar{width:100%;height:auto;max-height:140px;flex-direction:row;flex-wrap:wrap;gap:8px;overflow-x:auto}
+  .stat-box{min-width:100px;flex:1}
+}
+</style>
+</head>
+
+<body x-data="breakoutGame()" x-init="init()" @keydown.window="handleKey($event)" @keyup.window="handleKeyUp($event)" @mousemove.window="handleMouse($event)">
+
+<div class="game-wrap">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <h5 class="mb-3 fw-bold"><i class="bi bi-bricks me-1" style="color:#a78bfa"></i>遊戲狀態</h5>
+
+    <div class="stat-box">
+      <div class="stat-label">分數</div>
+      <div class="stat-value text-warning" x-text="score.toLocaleString()"></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">關卡</div>
+      <div class="stat-value" style="color:#a78bfa" x-text="'Level ' + level"></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">生命</div>
+      <div class="stat-value text-danger" x-text="'❤️'.repeat(Math.max(0,lives))"></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">連擊</div>
+      <div class="combo-text" x-text="combo > 1 ? combo + 'x Combo!' : '-'"></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">磚塊剩餘</div>
+      <div class="stat-value" style="color:#34d399" x-text="bricksLeft"></div>
+    </div>
+
+    <!-- Active powerup -->
+    <template x-if="activePowerup">
+      <div class="stat-box" style="border:1px solid" :style="`border-color:${activePowerup.color}`">
+        <div class="stat-label">效果啟用中</div>
+        <div class="d-flex align-items-center gap-2 mt-1">
+          <span x-text="activePowerup.icon" style="font-size:20px"></span>
+          <span class="fw-bold" :style="`color:${activePowerup.color}`" x-text="activePowerup.name"></span>
+        </div>
+        <div class="mt-1" style="height:4px;border-radius:2px;background:rgba(255,255,255,.08)">
+          <div style="height:100%;border-radius:2px;transition:width .2s" :style="`width:${activePowerup.remaining/activePowerup.duration*100}%;background:${activePowerup.color}`"></div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Powerup legend -->
+    <div class="mt-3">
+      <div class="setting-label mb-2">道具圖鑑</div>
+      <div class="powerup-row"><div class="powerup-dot" style="background:#34d399"></div><span>🟢 加長擋板</span></div>
+      <div class="powerup-row"><div class="powerup-dot" style="background:#ef4444"></div><span>🔴 縮短擋板</span></div>
+      <div class="powerup-row"><div class="powerup-dot" style="background:#fbbf24"></div><span>🟡 多球分裂</span></div>
+      <div class="powerup-row"><div class="powerup-dot" style="background:#60a5fa"></div><span>🔵 黏性擋板</span></div>
+      <div class="powerup-row"><div class="powerup-dot" style="background:#c084fc"></div><span>🟣 穿透火球</span></div>
+      <div class="powerup-row"><div class="powerup-dot" style="background:#f472b6"></div><span>🩷 加一條命</span></div>
+      <div class="powerup-row"><div class="powerup-dot" style="background:#fb923c"></div><span>🟠 慢動作</span></div>
+    </div>
+
+    <div class="mt-auto pt-3 border-top" style="border-color:var(--border)!important">
+      <div class="setting-label mb-2">操作說明</div>
+      <div class="small text-muted">
+        <div>⬅➡ / A D / 滑鼠 — 移動擋板</div>
+        <div>空白鍵 / 點擊 — 發射球</div>
+        <div>P — 暫停</div>
+      </div>
+      <a href="../index.html" class="btn btn-sm btn-outline-secondary w-100 mt-3"><i class="bi bi-house me-1"></i>返回大廳</a>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main-area" @click="launch()">
+    <div class="hud" x-show="state==='playing'||state==='paused'">
+      <div class="hud-item" x-show="state==='paused'" class="text-warning">⏸ 暫停中</div>
+      <div class="hud-item" x-show="!launched">點擊/空白鍵 發射球</div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="toast-area">
+      <template x-for="(t,i) in toasts" :key="t.id">
+        <div class="game-toast mb-2" x-text="t.text"></div>
+      </template>
+    </div>
+
+    <!-- MENU -->
+    <template x-if="state==='menu'">
+    <div class="menu-overlay">
+      <div class="mb-2" style="font-size:72px">🧱</div>
+      <h1 class="menu-title mb-2">霓虹打磚塊</h1>
+      <p class="text-muted mb-5">華麗粒子效果 × 瘋狂道具 × 無盡關卡</p>
+      <button class="btn-play" @click="startGame()">
+        <i class="bi bi-play-fill me-2"></i>開始遊戲
+      </button>
+      <a href="../index.html" class="btn btn-sm btn-outline-secondary mt-3"><i class="bi bi-house me-1"></i>返回大廳</a>
+    </div>
+    </template>
+
+    <!-- GAME OVER -->
+    <template x-if="state==='gameover'">
+    <div class="menu-overlay">
+      <div class="mb-3" style="font-size:64px">💥</div>
+      <h2 class="text-danger mb-1">遊戲結束</h2>
+      <p class="text-muted mb-2">最終分數</p>
+      <div class="mb-1" style="font-size:48px;font-weight:900;color:#fbbf24" x-text="score.toLocaleString()"></div>
+      <p class="text-muted mb-4">到達 Level <span x-text="level"></span> · 最高連擊 <span x-text="maxCombo"></span>x</p>
+      <div class="d-flex gap-3">
+        <button class="btn-play" @click="startGame()"><i class="bi bi-arrow-counterclockwise me-1"></i>再來一局</button>
+        <button class="btn btn-outline-secondary px-4 py-3" style="border-radius:12px;cursor:pointer" @click="state='menu'"><i class="bi bi-house me-1"></i>選單</button>
+      </div>
+    </div>
+    </template>
+
+    <!-- LEVEL CLEAR -->
+    <template x-if="state==='levelclear'">
+    <div class="menu-overlay">
+      <div class="mb-3" style="font-size:64px">🎉</div>
+      <h2 class="text-warning mb-1">Level <span x-text="level"></span> 通關！</h2>
+      <p class="text-muted mb-4">準備進入下一關</p>
+      <button class="btn-play" @click="nextLevel()"><i class="bi bi-arrow-right me-1"></i>下一關</button>
+    </div>
+    </template>
+  </div>
+</div>
+
+<script>
+function breakoutGame() {
+  // Game constants
+  const CW = 680, CH = 780;
+  const PADDLE_H = 14;
+  const BALL_R = 7;
+  const BRICK_ROWS = 8;
+  const BRICK_COLS = 11;
+  const BRICK_H = 22;
+  const BRICK_GAP = 4;
+  const BRICK_TOP = 60;
+
+  // Neon color palettes per row
+  const ROW_COLORS = [
+    ['#ef4444','#dc2626'], ['#f97316','#ea580c'], ['#fbbf24','#d97706'], ['#a3e635','#84cc16'],
+    ['#34d399','#10b981'], ['#22d3ee','#06b6d4'], ['#818cf8','#6366f1'], ['#c084fc','#a855f7'],
+    ['#f472b6','#ec4899'], ['#fb7185','#f43f5e']
+  ];
+
+  // Powerup definitions
+  const POWERUPS = [
+    { type:'wide',   name:'加長擋板', icon:'🟢', color:'#34d399', duration:600 },
+    { type:'narrow', name:'縮短擋板', icon:'🔴', color:'#ef4444', duration:400 },
+    { type:'multi',  name:'多球分裂', icon:'🟡', color:'#fbbf24', duration:0 },
+    { type:'sticky', name:'黏性擋板', icon:'🔵', color:'#60a5fa', duration:500 },
+    { type:'fire',   name:'穿透火球', icon:'🟣', color:'#c084fc', duration:400 },
+    { type:'life',   name:'加一條命', icon:'🩷', color:'#f472b6', duration:0 },
+    { type:'slow',   name:'慢動作',   icon:'🟠', color:'#fb923c', duration:500 },
+  ];
+
+  return {
+    state: 'menu',
+    score: 0, level: 1, lives: 3, combo: 0, maxCombo: 0,
+    launched: false,
+    bricks: [], balls: [], drops: [], particles: [],
+    paddle: { x: 0, w: 100, speed: 0 },
+    activePowerup: null,
+    toasts: [], toastId: 0,
+    ctx: null, frameReq: null,
+    keys: {},
+    lastTime: 0,
+    bricksLeft: 0,
+    stickyBall: null,
+
+    init() {
+      this.$nextTick(() => {
+        const c = document.getElementById('gameCanvas');
+        c.width = CW; c.height = CH;
+        this.ctx = c.getContext('2d');
+      });
+    },
+
+    startGame() {
+      this.score = 0; this.level = 1; this.lives = 3; this.combo = 0; this.maxCombo = 0;
+      this.activePowerup = null;
+      this.setupLevel();
+      this.state = 'playing';
+      this.lastTime = performance.now();
+      if (this.frameReq) cancelAnimationFrame(this.frameReq);
+      this.loop();
+    },
+
+    setupLevel() {
+      this.launched = false;
+      this.stickyBall = null;
+      this.drops = [];
+      this.particles = [];
+      this.balls = [];
+
+      // Paddle
+      this.paddle.x = CW / 2;
+      this.paddle.w = 100;
+
+      // Apply carried powerup state
+      if (this.activePowerup?.type === 'wide') this.paddle.w = 150;
+
+      // Ball on paddle
+      this.balls.push(this.createBall());
+
+      // Bricks
+      this.bricks = [];
+      const brickW = (CW - BRICK_GAP * (BRICK_COLS + 1)) / BRICK_COLS;
+      const rows = Math.min(BRICK_ROWS + Math.floor(this.level / 2), 12);
+      for (let r = 0; r < rows; r++) {
+        const colors = ROW_COLORS[r % ROW_COLORS.length];
+        for (let c = 0; c < BRICK_COLS; c++) {
+          const x = BRICK_GAP + c * (brickW + BRICK_GAP);
+          const y = BRICK_TOP + r * (BRICK_H + BRICK_GAP);
+          let hp = 1;
+          // Some bricks are tougher at higher levels
+          if (this.level >= 2 && Math.random() < 0.15 * this.level) hp = 2;
+          if (this.level >= 4 && Math.random() < 0.05 * this.level) hp = 3;
+          // Gold indestructible bricks at high levels
+          const gold = this.level >= 3 && Math.random() < 0.04;
+          this.bricks.push({
+            x, y, w: brickW, h: BRICK_H,
+            hp, maxHp: hp,
+            color: gold ? '#fbbf24' : colors[0],
+            glow: gold ? '#fbbf24' : colors[1],
+            alive: true, gold,
+            shake: 0
+          });
+        }
+      }
+      this.bricksLeft = this.bricks.filter(b => b.alive && !b.gold).length;
+    },
+
+    createBall() {
+      return {
+        x: this.paddle.x, y: CH - 40 - BALL_R - PADDLE_H,
+        vx: 0, vy: 0,
+        speed: 5 + this.level * 0.3,
+        fire: this.activePowerup?.type === 'fire',
+        trail: []
+      };
+    },
+
+    nextLevel() {
+      this.level++;
+      // Keep powerup if still active
+      this.setupLevel();
+      this.state = 'playing';
+      this.showToast(`🎯 Level ${this.level} 開始！`);
+      if (this.frameReq) cancelAnimationFrame(this.frameReq);
+      this.lastTime = performance.now();
+      this.loop();
+    },
+
+    launch() {
+      if (this.state !== 'playing') return;
+      if (this.launched) return;
+      this.launched = true;
+      for (const ball of this.balls) {
+        if (ball.vx === 0 && ball.vy === 0) {
+          const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.6;
+          ball.vx = Math.cos(angle) * ball.speed;
+          ball.vy = Math.sin(angle) * ball.speed;
+        }
+      }
+      if (this.stickyBall) {
+        const b = this.stickyBall;
+        const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.6;
+        b.vx = Math.cos(angle) * b.speed;
+        b.vy = Math.sin(angle) * b.speed;
+        this.stickyBall = null;
+      }
+    },
+
+    // ── GAME LOOP ──
+    loop() {
+      const now = performance.now();
+      const dt = Math.min((now - this.lastTime) / 16.67, 3); // Normalize to ~60fps
+      this.lastTime = now;
+
+      if (this.state === 'playing') {
+        this.update(dt);
+      }
+      this.render();
+      this.frameReq = requestAnimationFrame(() => this.loop());
+    },
+
+    update(dt) {
+      const slow = this.activePowerup?.type === 'slow' ? 0.55 : 1;
+
+      // Paddle movement
+      let pdx = 0;
+      if (this.keys['ArrowLeft'] || this.keys['a'] || this.keys['A']) pdx = -8;
+      if (this.keys['ArrowRight'] || this.keys['d'] || this.keys['D']) pdx = 8;
+      if (this.mouseX !== undefined) {
+        const canvas = document.getElementById('gameCanvas');
+        const rect = canvas.getBoundingClientRect();
+        const mx = (this.mouseX - rect.left) / rect.width * CW;
+        pdx = (mx - this.paddle.x) * 0.15;
+      }
+      this.paddle.x = Math.max(this.paddle.w / 2, Math.min(CW - this.paddle.w / 2, this.paddle.x + pdx * dt));
+
+      // Ball on paddle
+      if (!this.launched) {
+        for (const b of this.balls) {
+          b.x = this.paddle.x;
+          b.y = CH - 40 - BALL_R - PADDLE_H;
+        }
+        // Powerup timers still tick
+        this.tickPowerup(dt);
+        this.updateParticles(dt);
+        return;
+      }
+
+      // Move balls
+      for (const ball of this.balls) {
+        if (ball === this.stickyBall) {
+          ball.x = this.paddle.x + (ball.stickyOffset || 0);
+          continue;
+        }
+
+        const spd = slow;
+        ball.x += ball.vx * dt * spd;
+        ball.y += ball.vy * dt * spd;
+
+        // Trail
+        ball.trail.push({ x: ball.x, y: ball.y, a: 1 });
+        if (ball.trail.length > 12) ball.trail.shift();
+        for (const t of ball.trail) t.a -= 0.08;
+
+        // Wall bounce
+        if (ball.x - BALL_R < 0) { ball.x = BALL_R; ball.vx = Math.abs(ball.vx); }
+        if (ball.x + BALL_R > CW) { ball.x = CW - BALL_R; ball.vx = -Math.abs(ball.vx); }
+        if (ball.y - BALL_R < 0) { ball.y = BALL_R; ball.vy = Math.abs(ball.vy); }
+
+        // Bottom — lose ball
+        if (ball.y > CH + BALL_R) {
+          ball.dead = true;
+          this.combo = 0;
+        }
+
+        // Paddle bounce
+        const px = this.paddle.x, pw = this.paddle.w;
+        const py = CH - 40;
+        if (ball.vy > 0 && ball.y + BALL_R >= py && ball.y + BALL_R <= py + PADDLE_H + 4
+            && ball.x >= px - pw/2 - BALL_R && ball.x <= px + pw/2 + BALL_R) {
+          // Sticky
+          if (this.activePowerup?.type === 'sticky' && !this.stickyBall) {
+            ball.vy = 0; ball.vx = 0;
+            ball.stickyOffset = ball.x - this.paddle.x;
+            this.stickyBall = ball;
+            this.launched = false;
+            continue;
+          }
+          const hit = (ball.x - px) / (pw / 2); // -1 to 1
+          const angle = hit * Math.PI / 3 - Math.PI / 2; // -150° to -30°
+          const spd = ball.speed;
+          ball.vx = Math.cos(angle) * spd;
+          ball.vy = Math.sin(angle) * spd;
+          ball.y = py - BALL_R;
+          this.spawnParticles(ball.x, py, '#a78bfa', 5);
+        }
+
+        // Brick collision
+        for (const brick of this.bricks) {
+          if (!brick.alive) continue;
+          if (this.ballHitBrick(ball, brick)) {
+            brick.shake = 6;
+            if (brick.gold) {
+              // Gold bricks just bounce
+              this.spawnParticles(brick.x + brick.w/2, brick.y + brick.h/2, '#fbbf24', 4);
+              continue;
+            }
+            brick.hp--;
+            if (brick.hp <= 0) {
+              brick.alive = false;
+              this.bricksLeft--;
+              this.combo++;
+              if (this.combo > this.maxCombo) this.maxCombo = this.combo;
+              const comboMult = Math.min(this.combo, 10);
+              this.score += (10 + this.level * 5) * comboMult;
+              this.spawnParticles(brick.x + brick.w/2, brick.y + brick.h/2, brick.color, 12);
+
+              // Combo toast
+              if (this.combo === 5) this.showToast('🔥 5x Combo!');
+              if (this.combo === 10) this.showToast('💥 10x Combo! 超猛！');
+              if (this.combo === 20) this.showToast('🌟 20x Combo! 不可思議！');
+
+              // Drop powerup chance
+              if (Math.random() < 0.18) {
+                this.spawnDrop(brick.x + brick.w/2, brick.y + brick.h/2);
+              }
+            } else {
+              this.spawnParticles(brick.x + brick.w/2, brick.y + brick.h/2, brick.color, 4);
+            }
+
+            // Fire ball goes through
+            if (!ball.fire) break;
+          }
+        }
+      }
+
+      // Remove dead balls
+      this.balls = this.balls.filter(b => !b.dead);
+      if (this.balls.length === 0) {
+        this.lives--;
+        this.combo = 0;
+        this.activePowerup = null;
+        if (this.lives <= 0) {
+          this.state = 'gameover';
+          cancelAnimationFrame(this.frameReq);
+          return;
+        }
+        this.showToast(`💔 失去一條命！剩餘 ${this.lives} 條`);
+        this.launched = false;
+        this.stickyBall = null;
+        this.paddle.w = 100;
+        this.balls.push(this.createBall());
+      }
+
+      // Powerup drops
+      for (const d of this.drops) {
+        d.y += 2.5 * dt * slow;
+        d.pulse = (d.pulse || 0) + 0.05;
+        // Catch
+        const py2 = CH - 40;
+        if (d.y >= py2 && d.y <= py2 + PADDLE_H + 10
+            && d.x >= this.paddle.x - this.paddle.w/2 - 10
+            && d.x <= this.paddle.x + this.paddle.w/2 + 10) {
+          d.caught = true;
+          this.applyPowerup(d.powerup);
+        }
+        if (d.y > CH + 20) d.caught = true;
+      }
+      this.drops = this.drops.filter(d => !d.caught);
+
+      // Powerup timer
+      this.tickPowerup(dt);
+
+      // Particles
+      this.updateParticles(dt);
+
+      // Brick shake decay
+      for (const b of this.bricks) { if (b.shake > 0) b.shake -= 0.3 * dt; }
+
+      // Level clear
+      if (this.bricksLeft <= 0) {
+        this.state = 'levelclear';
+        this.score += this.lives * 500 + this.level * 200;
+        cancelAnimationFrame(this.frameReq);
+        this.showToast(`🎉 Level ${this.level} 通關！+${this.lives*500+this.level*200} 獎勵分`);
+      }
+    },
+
+    ballHitBrick(ball, brick) {
+      const bx = brick.x + (brick.shake > 0 ? (Math.random()-.5)*brick.shake : 0);
+      const closestX = Math.max(bx, Math.min(ball.x, bx + brick.w));
+      const closestY = Math.max(brick.y, Math.min(ball.y, brick.y + brick.h));
+      const dx = ball.x - closestX, dy = ball.y - closestY;
+      if (dx*dx + dy*dy < BALL_R*BALL_R) {
+        if (!ball.fire) {
+          // Determine bounce direction
+          const overlapX = BALL_R - Math.abs(dx);
+          const overlapY = BALL_R - Math.abs(dy);
+          if (overlapX < overlapY) {
+            ball.vx = -ball.vx;
+          } else {
+            ball.vy = -ball.vy;
+          }
+        }
+        return true;
+      }
+      return false;
+    },
+
+    spawnDrop(x, y) {
+      const pu = POWERUPS[Math.floor(Math.random() * POWERUPS.length)];
+      this.drops.push({ x, y, powerup: pu, pulse: 0, caught: false });
+    },
+
+    applyPowerup(pu) {
+      this.showToast(`${pu.icon} ${pu.name}！`);
+
+      // Instant effects
+      if (pu.type === 'life') { this.lives = Math.min(this.lives + 1, 5); return; }
+      if (pu.type === 'multi') {
+        const newBalls = [];
+        for (const b of this.balls) {
+          if (b === this.stickyBall) continue;
+          for (let i = 0; i < 2; i++) {
+            const angle = Math.atan2(b.vy, b.vx) + (i === 0 ? 0.4 : -0.4);
+            newBalls.push({
+              x: b.x, y: b.y,
+              vx: Math.cos(angle) * b.speed,
+              vy: Math.sin(angle) * b.speed,
+              speed: b.speed, fire: b.fire, trail: []
+            });
+          }
+        }
+        this.balls.push(...newBalls);
+        return;
+      }
+
+      // Timed effects
+      if (pu.duration > 0) {
+        this.activePowerup = { ...pu, remaining: pu.duration };
+      }
+
+      if (pu.type === 'wide') this.paddle.w = 150;
+      if (pu.type === 'narrow') this.paddle.w = 60;
+      if (pu.type === 'fire') { for (const b of this.balls) b.fire = true; }
+    },
+
+    tickPowerup(dt) {
+      if (!this.activePowerup) return;
+      this.activePowerup.remaining -= dt;
+      if (this.activePowerup.remaining <= 0) {
+        const t = this.activePowerup.type;
+        if (t === 'wide' || t === 'narrow') this.paddle.w = 100;
+        if (t === 'fire') { for (const b of this.balls) b.fire = false; }
+        this.activePowerup = null;
+      }
+    },
+
+    spawnParticles(x, y, color, count) {
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1 + Math.random() * 3;
+        this.particles.push({
+          x, y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          color, life: 1, size: 2 + Math.random() * 3
+        });
+      }
+    },
+
+    updateParticles(dt) {
+      for (const p of this.particles) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 0.05 * dt;
+        p.life -= 0.02 * dt;
+      }
+      this.particles = this.particles.filter(p => p.life > 0);
+      if (this.particles.length > 300) this.particles.splice(0, 50);
+    },
+
+    // ── RENDER ──
+    render() {
+      const ctx = this.ctx;
+      if (!ctx) return;
+
+      // BG
+      ctx.fillStyle = '#0d1117';
+      ctx.fillRect(0, 0, CW, CH);
+
+      // Subtle grid
+      ctx.strokeStyle = 'rgba(255,255,255,.015)';
+      for (let i = 0; i < CW; i += 40) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,CH); ctx.stroke(); }
+      for (let i = 0; i < CH; i += 40) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(CW,i); ctx.stroke(); }
+
+      // Bricks
+      for (const b of this.bricks) {
+        if (!b.alive) continue;
+        const ox = b.shake > 0 ? (Math.random()-.5)*b.shake : 0;
+
+        // Glow
+        ctx.shadowColor = b.glow;
+        ctx.shadowBlur = 8;
+
+        // Brick body
+        const hpRatio = b.hp / b.maxHp;
+        ctx.fillStyle = b.color;
+        ctx.globalAlpha = 0.4 + hpRatio * 0.6;
+        this.roundRect(ctx, b.x + ox, b.y, b.w, b.h, 4);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // HP indicator for multi-hit
+        if (b.maxHp > 1 && !b.gold) {
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(b.hp.toString(), b.x + b.w/2 + ox, b.y + b.h/2);
+        }
+
+        // Gold shimmer
+        if (b.gold) {
+          ctx.fillStyle = '#fbbf2433';
+          ctx.fillRect(b.x + ox + b.w * ((Date.now()/800)%1), b.y, 3, b.h);
+        }
+
+        ctx.shadowBlur = 0;
+      }
+
+      // Drops
+      for (const d of this.drops) {
+        const pulse = Math.sin(d.pulse) * 0.15 + 0.85;
+        ctx.shadowColor = d.powerup.color;
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = d.powerup.color + '44';
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, 12 * pulse, 0, Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.font = '16px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(d.powerup.icon, d.x, d.y);
+      }
+
+      // Balls
+      for (const ball of this.balls) {
+        // Trail
+        for (const t of ball.trail) {
+          if (t.a <= 0) continue;
+          ctx.globalAlpha = t.a * 0.3;
+          ctx.fillStyle = ball.fire ? '#c084fc' : '#e5e7eb';
+          ctx.beginPath();
+          ctx.arc(t.x, t.y, BALL_R * t.a, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        // Ball
+        ctx.shadowColor = ball.fire ? '#c084fc' : '#fff';
+        ctx.shadowBlur = ball.fire ? 15 : 8;
+        ctx.fillStyle = ball.fire ? '#c084fc' : '#fff';
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI*2);
+        ctx.fill();
+
+        // Fire effect
+        if (ball.fire) {
+          ctx.fillStyle = '#f472b666';
+          ctx.beginPath();
+          ctx.arc(ball.x, ball.y, BALL_R + 4 + Math.sin(Date.now()/100)*2, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.shadowBlur = 0;
+      }
+
+      // Paddle
+      const px = this.paddle.x, pw = this.paddle.w;
+      const py = CH - 40;
+      const grad = ctx.createLinearGradient(px - pw/2, py, px + pw/2, py);
+      grad.addColorStop(0, '#6366f1');
+      grad.addColorStop(0.5, '#a78bfa');
+      grad.addColorStop(1, '#6366f1');
+      ctx.shadowColor = '#8b5cf6';
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = grad;
+      this.roundRect(ctx, px - pw/2, py, pw, PADDLE_H, 7);
+      ctx.fill();
+
+      // Sticky indicator
+      if (this.activePowerup?.type === 'sticky') {
+        ctx.fillStyle = '#60a5fa66';
+        this.roundRect(ctx, px - pw/2, py - 2, pw, 3, 2);
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+
+      // Particles
+      for (const p of this.particles) {
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+      }
+      ctx.globalAlpha = 1;
+
+      // Border glow
+      ctx.strokeStyle = 'rgba(139,92,246,.15)';
+      ctx.lineWidth = 2;
+      this.roundRect(ctx, 0, 0, CW, CH, 12);
+      ctx.stroke();
+    },
+
+    roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x+r,y);
+      ctx.arcTo(x+w,y,x+w,y+h,r);
+      ctx.arcTo(x+w,y+h,x,y+h,r);
+      ctx.arcTo(x,y+h,x,y,r);
+      ctx.arcTo(x,y,x+w,y,r);
+      ctx.closePath();
+    },
+
+    // ── INPUT ──
+    handleKey(e) {
+      this.keys[e.key] = true;
+      if (e.key === ' ') { e.preventDefault(); this.launch(); }
+      if (e.key === 'p' || e.key === 'P') {
+        if (this.state === 'playing') this.state = 'paused';
+        else if (this.state === 'paused') this.state = 'playing';
+      }
+    },
+    handleKeyUp(e) { this.keys[e.key] = false; },
+    handleMouse(e) { this.mouseX = e.clientX; },
+
+    showToast(text) {
+      const t = { id: ++this.toastId, text };
+      this.toasts.push(t);
+      setTimeout(() => { this.toasts = this.toasts.filter(x => x.id !== t.id); }, 2000);
+    }
+  };
+}
+</script>
+</body>
+</html>
