@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🔗 LINQ 闖關挑戰</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+<style>
+:root{--bg:#0a0f1a;--card:#111827;--border:#1f2937;--text:#e5e7eb;--muted:#9ca3af;--accent:#8b5cf6;--success:#34d399;--danger:#f87171}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+
+.layout{display:flex;min-height:100vh}
+.sidebar{width:280px;background:var(--card);border-right:1px solid var(--border);padding:0;display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.main{flex:1;overflow-y:auto;padding:24px}
+
+/* Level list */
+.level-item{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;transition:all .15s;border-left:3px solid transparent;font-size:14px}
+.level-item:hover{background:rgba(255,255,255,.04)}
+.level-item.active{background:rgba(139,92,246,.08);border-left-color:var(--accent)}
+.level-item.passed{opacity:.7}
+.level-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;border:2px solid var(--border);background:var(--card)}
+.level-dot.passed{border-color:var(--success);background:rgba(52,211,153,.1);color:var(--success)}
+.level-dot.active{border-color:var(--accent);color:var(--accent);box-shadow:0 0 8px rgba(139,92,246,.3)}
+.level-dot.locked{opacity:.3}
+
+/* Cards */
+.card-dark{background:var(--card);border:1px solid var(--border);border-radius:12px}
+
+/* Editor */
+.code-editor{width:100%;min-height:120px;background:#0d1117;color:#e6edf3;border:1px solid var(--border);border-radius:8px;padding:14px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:14px;line-height:1.6;resize:vertical;tab-size:4}
+.code-editor:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(139,92,246,.15)}
+.code-editor::placeholder{color:#484f58}
+
+/* Data table */
+.data-table{width:100%;font-size:13px;border-collapse:separate;border-spacing:0}
+.data-table th{background:rgba(139,92,246,.1);color:#a78bfa;padding:8px 12px;text-align:left;font-weight:700;border-bottom:2px solid rgba(139,92,246,.2)}
+.data-table td{padding:7px 12px;border-bottom:1px solid rgba(255,255,255,.04)}
+.data-table tr:hover td{background:rgba(255,255,255,.02)}
+
+/* Result */
+.result-pass{border-color:var(--success)!important;background:rgba(52,211,153,.05)!important}
+.result-fail{border-color:var(--danger)!important;background:rgba(248,113,113,.05)!important}
+
+/* Tags */
+.diff-tag{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600}
+.diff-easy{background:rgba(52,211,153,.12);color:#34d399;border:1px solid rgba(52,211,153,.25)}
+.diff-medium{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.25)}
+.diff-hard{background:rgba(248,113,113,.12);color:#f87171;border:1px solid rgba(248,113,113,.25)}
+.diff-expert{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.25)}
+
+/* Topic tag */
+.topic-tag{font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(139,92,246,.1);color:#a78bfa;border:1px solid rgba(139,92,246,.2)}
+
+/* Progress */
+.progress-ring{position:relative;display:inline-flex;align-items:center;justify-content:center}
+
+/* Hint */
+.hint-box{background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:8px;padding:12px;font-size:13px;color:#fbbf24}
+
+/* Confetti */
+.confetti{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999}
+
+/* Responsive */
+@media(max-width:900px){
+  .layout{flex-direction:column}
+  .sidebar{width:100%;max-height:200px;overflow-y:auto}
+}
+
+.code-keyword{color:#ff7b72}
+.code-method{color:#d2a8ff}
+.code-string{color:#a5d6ff}
+.code-number{color:#79c0ff}
+.code-comment{color:#8b949e}
+
+/* Expected output */
+.expected-box{background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'Cascadia Code','Fira Code',monospace;font-size:13px;max-height:200px;overflow-y:auto;white-space:pre-wrap}
+
+.run-btn{background:linear-gradient(135deg,#7c3aed,#a78bfa);border:none;color:#fff;font-weight:700;padding:10px 28px;border-radius:10px;transition:all .2s;font-size:15px}
+.run-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(139,92,246,.3);color:#fff}
+.run-btn:disabled{opacity:.5;transform:none;box-shadow:none}
+</style>
+</head>
+
+<body x-data="linqGame()" x-init="init()">
+<div class="layout">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="p-3 border-bottom" style="border-color:var(--border)!important">
+      <h5 class="fw-bold mb-1" style="color:#a78bfa"><i class="bi bi-braces me-1"></i>LINQ 闖關</h5>
+      <div class="small text-muted">通關 <span class="text-success fw-bold" x-text="passedCount"></span> / <span x-text="challenges.length"></span></div>
+      <div class="mt-2" style="height:6px;border-radius:3px;background:rgba(255,255,255,.06)">
+        <div style="height:100%;border-radius:3px;background:linear-gradient(90deg,#7c3aed,#34d399);transition:width .3s" :style="`width:${passedCount/challenges.length*100}%`"></div>
+      </div>
+    </div>
+    <div class="flex-grow-1 overflow-auto">
+      <template x-for="(ch,i) in challenges" :key="i">
+        <div class="level-item" :class="{'active':current===i,'passed':ch.passed}" @click="selectLevel(i)">
+          <div class="level-dot" :class="{'passed':ch.passed,'active':current===i}">
+            <span x-text="ch.passed?'✓':(i+1)"></span>
+          </div>
+          <div class="flex-grow-1">
+            <div class="fw-bold small" x-text="ch.title"></div>
+            <div class="d-flex gap-1 mt-1">
+              <span class="diff-tag" :class="'diff-'+ch.difficulty" x-text="ch.diffLabel"></span>
+              <span class="topic-tag" x-text="ch.topic"></span>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+    <div class="p-3 border-top" style="border-color:var(--border)!important">
+      <a href="../index.html" class="btn btn-sm btn-outline-secondary w-100"><i class="bi bi-house me-1"></i>返回大廳</a>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="main">
+    <template x-if="challenges.length > 0">
+    <div style="max-width:900px;margin:0 auto">
+
+      <!-- Challenge header -->
+      <div class="d-flex align-items-center gap-3 mb-4">
+        <button class="btn btn-sm btn-outline-secondary" @click="selectLevel(Math.max(0,current-1))" :disabled="current===0"><i class="bi bi-chevron-left"></i></button>
+        <div class="flex-grow-1">
+          <h4 class="mb-0">
+            <span class="text-muted me-2" x-text="'#'+(current+1)"></span>
+            <span x-text="ch.title"></span>
+            <span x-show="ch.passed" class="text-success ms-2"><i class="bi bi-check-circle-fill"></i></span>
+          </h4>
+          <div class="d-flex gap-2 mt-1">
+            <span class="diff-tag" :class="'diff-'+ch.difficulty" x-text="ch.diffLabel"></span>
+            <span class="topic-tag" x-text="ch.topic"></span>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" @click="selectLevel(Math.min(challenges.length-1,current+1))" :disabled="current===challenges.length-1"><i class="bi bi-chevron-right"></i></button>
+      </div>
+
+      <!-- Description -->
+      <div class="card-dark p-4 mb-4">
+        <h6 class="text-muted mb-2"><i class="bi bi-book me-1"></i>題目說明</h6>
+        <div class="mb-3" x-html="ch.description"></div>
+
+        <!-- Concept hint -->
+        <div class="p-3 rounded mb-0" style="background:rgba(139,92,246,.06);border:1px solid rgba(139,92,246,.15)">
+          <div class="small fw-bold mb-1" style="color:#a78bfa"><i class="bi bi-lightbulb me-1"></i>LINQ 概念</div>
+          <div class="small text-muted" x-html="ch.concept"></div>
+        </div>
+      </div>
+
+      <!-- Data -->
+      <div class="card-dark p-4 mb-4">
+        <h6 class="text-muted mb-2"><i class="bi bi-database me-1"></i>資料集</h6>
+        <div class="small mb-2 text-muted" x-html="ch.dataDesc"></div>
+        <div class="table-responsive" style="max-height:250px;overflow-y:auto">
+          <table class="data-table">
+            <thead><tr>
+              <template x-for="col in ch.columns" :key="col"><th x-text="col"></th></template>
+            </tr></thead>
+            <tbody>
+              <template x-for="(row,ri) in ch.displayData" :key="ri"><tr>
+                <template x-for="col in ch.columns" :key="col"><td x-text="row[col]"></td></template>
+              </tr></template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Expected output -->
+      <div class="card-dark p-4 mb-4">
+        <h6 class="text-muted mb-2"><i class="bi bi-check2-square me-1"></i>期望輸出</h6>
+        <div class="expected-box" x-text="ch.expectedDisplay"></div>
+      </div>
+
+      <!-- Editor -->
+      <div class="card-dark p-4 mb-4" :class="{'result-pass':result==='pass','result-fail':result==='fail'}">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="mb-0 text-muted"><i class="bi bi-code-slash me-1"></i>你的 LINQ 查詢</h6>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-warning" @click="showHint=!showHint" x-show="ch.hint">
+              <i class="bi bi-question-circle me-1"></i>提示
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" @click="resetCode()">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>重置
+            </button>
+          </div>
+        </div>
+
+        <!-- Hint -->
+        <div class="hint-box mb-3" x-show="showHint" x-transition>
+          💡 <span x-text="ch.hint"></span>
+        </div>
+
+        <!-- Starter code (readonly) -->
+        <div class="small text-muted mb-1" x-show="ch.prefix">
+          <code class="text-muted" x-text="ch.prefix"></code>
+        </div>
+
+        <textarea class="code-editor" x-model="userCode" @keydown.ctrl.enter.prevent="runCode()" @keydown.meta.enter.prevent="runCode()" :placeholder="ch.placeholder || '在這裡輸入 LINQ 查詢...'" spellcheck="false"></textarea>
+
+        <div class="small text-muted mt-1" x-show="ch.suffix">
+          <code class="text-muted" x-text="ch.suffix"></code>
+        </div>
+
+        <!-- Result -->
+        <div class="mt-3" x-show="result">
+          <div class="p-3 rounded" :class="result==='pass'?'bg-success bg-opacity-10':'bg-danger bg-opacity-10'">
+            <div class="fw-bold mb-1" :class="result==='pass'?'text-success':'text-danger'">
+              <span x-text="result==='pass'?'✅ 正確！':'❌ 不正確'"></span>
+            </div>
+            <div class="small" x-show="result==='pass'" x-text="'🎉 ' + resultMsg"></div>
+            <div class="small text-danger" x-show="result==='fail'" x-text="resultMsg"></div>
+            <div class="mt-2" x-show="result==='fail' && actualOutput">
+              <div class="small text-muted mb-1">你的輸出：</div>
+              <div class="expected-box text-danger" style="font-size:12px" x-text="actualOutput"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="d-flex gap-3 mb-5">
+        <button class="run-btn" @click="runCode()" :disabled="!userCode.trim()">
+          <i class="bi bi-play-fill me-1"></i>執行 (Ctrl+Enter)
+        </button>
+        <button class="btn btn-outline-success px-4" style="border-radius:10px" @click="selectLevel(current+1)" x-show="ch.passed && current < challenges.length-1">
+          下一題 <i class="bi bi-arrow-right ms-1"></i>
+        </button>
+      </div>
+
+      <!-- Reference card -->
+      <div class="card-dark p-4 mb-4">
+        <h6 class="text-muted mb-3" @click="showRef=!showRef" style="cursor:pointer">
+          <i class="bi bi-book me-1"></i>LINQ 速查表
+          <i class="bi small ms-1" :class="showRef?'bi-chevron-up':'bi-chevron-down'"></i>
+        </h6>
+        <div x-show="showRef" x-transition>
+          <div class="row g-3 small">
+            <div class="col-md-6">
+              <h6 style="color:#a78bfa" class="small fw-bold">篩選 & 投影</h6>
+              <code class="d-block text-muted mb-1">.Where(x => x.Age > 20)</code>
+              <code class="d-block text-muted mb-1">.Select(x => x.Name)</code>
+              <code class="d-block text-muted mb-1">.SelectMany(x => x.Items)</code>
+              <code class="d-block text-muted mb-1">.Distinct()</code>
+              <h6 style="color:#a78bfa" class="small fw-bold mt-3">排序</h6>
+              <code class="d-block text-muted mb-1">.OrderBy(x => x.Name)</code>
+              <code class="d-block text-muted mb-1">.OrderByDescending(x => x.Age)</code>
+              <code class="d-block text-muted mb-1">.ThenBy(x => x.Name)</code>
+            </div>
+            <div class="col-md-6">
+              <h6 style="color:#a78bfa" class="small fw-bold">聚合</h6>
+              <code class="d-block text-muted mb-1">.Count() / .Count(x => x.Age > 20)</code>
+              <code class="d-block text-muted mb-1">.Sum(x => x.Price)</code>
+              <code class="d-block text-muted mb-1">.Average(x => x.Score)</code>
+              <code class="d-block text-muted mb-1">.Min(x => x.Age) / .Max(x => x.Age)</code>
+              <code class="d-block text-muted mb-1">.First() / .FirstOrDefault()</code>
+              <code class="d-block text-muted mb-1">.Any(x => x.Active) / .All(x => x.Active)</code>
+              <h6 style="color:#a78bfa" class="small fw-bold mt-3">分組 & 分頁</h6>
+              <code class="d-block text-muted mb-1">.GroupBy(x => x.Dept)</code>
+              <code class="d-block text-muted mb-1">.Take(5) / .Skip(3)</code>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    </template>
+  </div>
+</div>
+
+<!-- Confetti canvas -->
+<canvas class="confetti" id="confettiCanvas" x-ref="confetti"></canvas>
+
+<script>
+function linqGame() {
+  // ═══════════════════════════════════════
+  //  DATA SETS
+  // ═══════════════════════════════════════
+  const students = [
+    {Name:"小明",Age:22,Grade:"A",Score:92,Department:"資工系"},
+    {Name:"小華",Age:20,Grade:"B",Score:78,Department:"電機系"},
+    {Name:"小美",Age:23,Grade:"A",Score:95,Department:"資工系"},
+    {Name:"小強",Age:21,Grade:"C",Score:65,Department:"機械系"},
+    {Name:"小芳",Age:22,Grade:"B",Score:81,Department:"電機系"},
+    {Name:"小龍",Age:24,Grade:"A",Score:88,Department:"資工系"},
+    {Name:"小雯",Age:20,Grade:"C",Score:60,Department:"機械系"},
+    {Name:"小傑",Age:23,Grade:"B",Score:75,Department:"電機系"},
+    {Name:"小玲",Age:21,Grade:"A",Score:90,Department:"資工系"},
+    {Name:"小偉",Age:25,Grade:"B",Score:82,Department:"機械系"}
+  ];
+
+  const products = [
+    {Name:"筆電",Category:"電子產品",Price:35000,Stock:15,Rating:4.5},
+    {Name:"手機",Category:"電子產品",Price:25000,Stock:50,Rating:4.2},
+    {Name:"耳機",Category:"電子產品",Price:3000,Stock:100,Rating:4.8},
+    {Name:"運動鞋",Category:"運動用品",Price:2500,Stock:30,Rating:4.0},
+    {Name:"瑜珈墊",Category:"運動用品",Price:800,Stock:45,Rating:3.8},
+    {Name:"籃球",Category:"運動用品",Price:1200,Stock:25,Rating:4.3},
+    {Name:"小說",Category:"書籍",Price:350,Stock:200,Rating:4.6},
+    {Name:"教科書",Category:"書籍",Price:600,Stock:80,Rating:3.5},
+    {Name:"漫畫",Category:"書籍",Price:150,Stock:300,Rating:4.7},
+    {Name:"桌椅",Category:"傢俱",Price:8000,Stock:10,Rating:4.1}
+  ];
+
+  const orders = [
+    {Id:1,Customer:"Alice",Product:"筆電",Amount:1,Total:35000,Date:"2024-01-15"},
+    {Id:2,Customer:"Bob",Product:"手機",Amount:2,Total:50000,Date:"2024-01-20"},
+    {Id:3,Customer:"Alice",Product:"耳機",Amount:1,Total:3000,Date:"2024-02-01"},
+    {Id:4,Customer:"Charlie",Product:"運動鞋",Amount:1,Total:2500,Date:"2024-02-10"},
+    {Id:5,Customer:"Bob",Product:"小說",Amount:3,Total:1050,Date:"2024-02-15"},
+    {Id:6,Customer:"Alice",Product:"瑜珈墊",Amount:2,Total:1600,Date:"2024-03-01"},
+    {Id:7,Customer:"Diana",Product:"筆電",Amount:1,Total:35000,Date:"2024-03-05"},
+    {Id:8,Customer:"Charlie",Product:"漫畫",Amount:5,Total:750,Date:"2024-03-10"},
+    {Id:9,Customer:"Diana",Product:"耳機",Amount:2,Total:6000,Date:"2024-03-15"},
+    {Id:10,Customer:"Bob",Product:"籃球",Amount:1,Total:1200,Date:"2024-03-20"}
+  ];
+
+  const employees = [
+    {Name:"王大明",Department:"工程部",Salary:65000,Years:5,Skills:["C#","SQL","Azure"]},
+    {Name:"李小華",Department:"工程部",Salary:55000,Years:3,Skills:["JavaScript","React"]},
+    {Name:"張美玲",Department:"設計部",Salary:48000,Years:4,Skills:["Figma","Photoshop","CSS"]},
+    {Name:"陳志強",Department:"工程部",Salary:72000,Years:8,Skills:["C#","SQL","Docker","K8s"]},
+    {Name:"林雅芳",Department:"行銷部",Salary:45000,Years:2,Skills:["SEO","GA4"]},
+    {Name:"黃建宏",Department:"設計部",Salary:52000,Years:6,Skills:["Figma","Illustrator","CSS","HTML"]},
+    {Name:"劉佩琪",Department:"行銷部",Salary:50000,Years:4,Skills:["SEO","GA4","廣告投放"]},
+    {Name:"吳俊傑",Department:"工程部",Salary:80000,Years:10,Skills:["C#","SQL","Azure","Docker","K8s","Terraform"]}
+  ];
+
+  // ═══════════════════════════════════════
+  //  CHALLENGES
+  // ═══════════════════════════════════════
+  const challenges = [
+    // 1 - Where
+    {
+      title: "篩選成年高分學生",
+      topic: "Where", difficulty: "easy", diffLabel: "簡單",
+      description: "從學生資料中，篩選出<strong>年齡大於 21 歲</strong>的學生，回傳他們的完整資料。",
+      concept: "<code>Where</code> 等同於 SQL 的 <code>WHERE</code>，接受一個 lambda 表達式作為條件，回傳所有符合條件的元素。<br><code>students.Where(s => s.Age > 21)</code>",
+      dataName: "students", data: students, columns: ["Name","Age","Grade","Score","Department"],
+      placeholder: "students.Where(s => ...)",
+      hint: "使用 .Where(s => s.Age > 21)",
+      validate: (result, data) => {
+        const expected = data.filter(s => s.Age > 21);
+        return deepEqual(result, expected);
+      },
+      expectedDisplay: students.filter(s=>s.Age>21).map(s=>`{ Name: "${s.Name}", Age: ${s.Age}, Grade: "${s.Grade}", Score: ${s.Score}, Department: "${s.Department}" }`).join('\n')
+    },
+    // 2 - Select
+    {
+      title: "投影學生姓名",
+      topic: "Select", difficulty: "easy", diffLabel: "簡單",
+      description: "從學生資料中，只<strong>取出所有學生的姓名 (Name)</strong>，回傳一個字串陣列。",
+      concept: "<code>Select</code> 等同於 SQL 的 <code>SELECT column</code>，用來投影/轉換每個元素。<br><code>list.Select(x => x.PropertyName)</code>",
+      dataName: "students", data: students, columns: ["Name","Age","Grade","Score","Department"],
+      placeholder: "students.Select(s => ...)",
+      hint: "使用 .Select(s => s.Name)",
+      validate: (result, data) => deepEqual(result, data.map(s => s.Name)),
+      expectedDisplay: JSON.stringify(students.map(s=>s.Name), null, 2)
+    },
+    // 3 - Where + Select
+    {
+      title: "A 級生的姓名",
+      topic: "Where + Select", difficulty: "easy", diffLabel: "簡單",
+      description: "找出所有<strong>成績等級 (Grade) 為 \"A\"</strong> 的學生，並<strong>只回傳他們的姓名</strong>。",
+      concept: "LINQ 支援方法鏈（method chaining），可以把多個操作串在一起：<br><code>.Where(...).Select(...)</code>",
+      dataName: "students", data: students, columns: ["Name","Age","Grade","Score","Department"],
+      placeholder: "students.Where(...).Select(...)",
+      hint: "先用 Where 篩選 Grade === \"A\"，再用 Select 取出 Name",
+      validate: (result, data) => deepEqual(result, data.filter(s=>s.Grade==="A").map(s=>s.Name)),
+      expectedDisplay: JSON.stringify(students.filter(s=>s.Grade==="A").map(s=>s.Name), null, 2)
+    },
+    // 4 - OrderBy
+    {
+      title: "學生依分數排序",
+      topic: "OrderBy", difficulty: "easy", diffLabel: "簡單",
+      description: "將所有學生依<strong>分數 (Score) 由低到高排序</strong>，回傳排序後的完整資料。",
+      concept: "<code>OrderBy</code> 升冪排序，<code>OrderByDescending</code> 降冪排序。<br><code>list.OrderBy(x => x.Field)</code>",
+      dataName: "students", data: students, columns: ["Name","Age","Grade","Score","Department"],
+      placeholder: "students.OrderBy(s => ...)",
+      hint: "使用 .OrderBy(s => s.Score)",
+      validate: (result, data) => deepEqual(result, [...data].sort((a,b)=>a.Score-b.Score)),
+      expectedDisplay: [...students].sort((a,b)=>a.Score-b.Score).map(s=>`{ Name: "${s.Name}", Score: ${s.Score} }`).join('\n')
+    },
+    // 5 - First / Count
+    {
+      title: "最高分的學生",
+      topic: "OrderBy + First", difficulty: "medium", diffLabel: "中等",
+      description: "找出<strong>分數最高</strong>的學生，回傳該學生的<strong>姓名 (Name)</strong>。<br><small class='text-muted'>提示：可以先排序再取第一個</small>",
+      concept: "<code>First()</code> 回傳序列中的第一個元素。搭配排序使用可以找最大/最小值。<br><code>list.OrderByDescending(x => x.Score).First()</code>",
+      dataName: "students", data: students, columns: ["Name","Age","Grade","Score","Department"],
+      placeholder: "students.OrderByDescending(...).First().Name  或  students.OrderByDescending(...).Select(...).First()",
+      hint: "先 OrderByDescending(s => s.Score)，再 .First()，最後取 .Name",
+      validate: (result, data) => {
+        const top = [...data].sort((a,b)=>b.Score-a.Score)[0];
+        return result === top.Name;
+      },
+      expectedDisplay: `"${[...students].sort((a,b)=>b.Score-a.Score)[0].Name}"`
+    },
+    // 6 - Count / Sum
+    {
+      title: "產品統計",
+      topic: "Count / Sum", difficulty: "medium", diffLabel: "中等",
+      description: "計算<strong>電子產品類別中，所有商品的庫存總和 (Stock)</strong>。回傳一個數字。",
+      concept: "<code>.Count()</code> 計數、<code>.Sum(x => x.Field)</code> 加總、<code>.Average(x => x.Field)</code> 平均。<br>可以先 <code>Where</code> 再聚合。",
+      dataName: "products", data: products, columns: ["Name","Category","Price","Stock","Rating"],
+      placeholder: "products.Where(...).Sum(p => ...)",
+      hint: "先 Where(p => p.Category === \"電子產品\") 再 .Sum(p => p.Stock)",
+      validate: (result, data) => result === data.filter(p=>p.Category==="電子產品").reduce((s,p)=>s+p.Stock,0),
+      expectedDisplay: String(products.filter(p=>p.Category==="電子產品").reduce((s,p)=>s+p.Stock,0))
+    },
+    // 7 - Any / All
+    {
+      title: "是否有高評價商品",
+      topic: "Any / All", difficulty: "medium", diffLabel: "中等",
+      description: "檢查是否<strong>存在評分 (Rating) 大於等於 4.7 的商品</strong>，回傳 <code>true</code> 或 <code>false</code>。",
+      concept: "<code>.Any(x => condition)</code> 只要任一元素滿足就回傳 true。<br><code>.All(x => condition)</code> 全部滿足才回傳 true。",
+      dataName: "products", data: products, columns: ["Name","Category","Price","Stock","Rating"],
+      placeholder: "products.Any(p => ...)",
+      hint: "使用 .Any(p => p.Rating >= 4.7)",
+      validate: (result, data) => result === data.some(p => p.Rating >= 4.7),
+      expectedDisplay: String(products.some(p => p.Rating >= 4.7))
+    },
+    // 8 - Distinct
+    {
+      title: "不重複的商品類別",
+      topic: "Select + Distinct", difficulty: "medium", diffLabel: "中等",
+      description: "取出所有<strong>不重複的商品類別 (Category)</strong>，回傳類別的字串陣列。",
+      concept: "<code>.Distinct()</code> 去除重複元素。通常搭配 <code>Select</code> 先取出要去重的欄位。",
+      dataName: "products", data: products, columns: ["Name","Category","Price","Stock","Rating"],
+      placeholder: "products.Select(...).Distinct()",
+      hint: "先 Select(p => p.Category) 再 .Distinct()",
+      validate: (result, data) => deepEqual(result, [...new Set(data.map(p=>p.Category))]),
+      expectedDisplay: JSON.stringify([...new Set(products.map(p=>p.Category))], null, 2)
+    },
+    // 9 - Take / Skip
+    {
+      title: "最貴的三樣商品",
+      topic: "OrderBy + Take", difficulty: "medium", diffLabel: "中等",
+      description: "找出<strong>價格最高的前 3 樣商品</strong>，回傳它們的<strong>名稱 (Name)</strong>。",
+      concept: "<code>.Take(n)</code> 取前 n 個，<code>.Skip(n)</code> 跳過前 n 個。常與排序搭配做分頁。",
+      dataName: "products", data: products, columns: ["Name","Category","Price","Stock","Rating"],
+      placeholder: "products.OrderByDescending(...).Take(3).Select(...)",
+      hint: "先 OrderByDescending(p => p.Price)，再 Take(3)，最後 Select(p => p.Name)",
+      validate: (result, data) => deepEqual(result, [...data].sort((a,b)=>b.Price-a.Price).slice(0,3).map(p=>p.Name)),
+      expectedDisplay: JSON.stringify([...products].sort((a,b)=>b.Price-a.Price).slice(0,3).map(p=>p.Name), null, 2)
+    },
+    // 10 - GroupBy
+    {
+      title: "各部門學生人數",
+      topic: "GroupBy", difficulty: "hard", diffLabel: "困難",
+      description: "依照<strong>科系 (Department) 分組</strong>，回傳每個科系的學生人數。<br>格式：物件陣列 <code>[{ Department: \"...\", Count: N }, ...]</code>",
+      concept: "<code>GroupBy(x => x.Key)</code> 會生成分組，每組有 <code>Key</code> 和元素集合。<br>通常搭配 <code>.Select(g => new { g.Key, Count: g.Count() })</code>",
+      dataName: "students", data: students, columns: ["Name","Age","Grade","Score","Department"],
+      placeholder: "students.GroupBy(s => s.Department).Select(g => new { Department = g.Key, Count = g.Count() })",
+      hint: "GroupBy(s => s.Department)，然後 Select 每組的 Key 和 Count()",
+      validate: (result, data) => {
+        const groups = {};
+        data.forEach(s => { groups[s.Department] = (groups[s.Department]||0)+1; });
+        const expected = Object.entries(groups).map(([k,v])=>({Department:k,Count:v}));
+        return deepEqual(sortByKey(result,'Department'), sortByKey(expected,'Department'));
+      },
+      expectedDisplay: (() => {
+        const g = {};
+        students.forEach(s=>{g[s.Department]=(g[s.Department]||0)+1;});
+        return Object.entries(g).map(([k,v])=>`{ Department: "${k}", Count: ${v} }`).join('\n');
+      })()
+    },
+    // 11 - GroupBy + Sum
+    {
+      title: "各客戶消費總額",
+      topic: "GroupBy + Sum", difficulty: "hard", diffLabel: "困難",
+      description: "依照<strong>客戶分組</strong>，計算每位客戶的<strong>消費總額 (Total)</strong>，並依總額<strong>由高到低排序</strong>。<br>格式：<code>[{ Customer: \"...\", TotalSpent: N }, ...]</code>",
+      concept: "分組後可以對每組做聚合：<br><code>.GroupBy(x => x.Customer).Select(g => new { Customer = g.Key, TotalSpent = g.Sum(x => x.Total) })</code>",
+      dataName: "orders", data: orders, columns: ["Id","Customer","Product","Amount","Total","Date"],
+      placeholder: "orders.GroupBy(o => o.Customer).Select(g => new { ... }).OrderByDescending(x => x.TotalSpent)",
+      hint: "GroupBy Customer → Select 出 Customer 和 Sum(Total) → OrderByDescending TotalSpent",
+      validate: (result, data) => {
+        const g = {};
+        data.forEach(o=>{g[o.Customer]=(g[o.Customer]||0)+o.Total;});
+        const expected = Object.entries(g).map(([k,v])=>({Customer:k,TotalSpent:v})).sort((a,b)=>b.TotalSpent-a.TotalSpent);
+        return deepEqual(result, expected);
+      },
+      expectedDisplay: (() => {
+        const g = {};
+        orders.forEach(o=>{g[o.Customer]=(g[o.Customer]||0)+o.Total;});
+        return Object.entries(g).map(([k,v])=>({Customer:k,TotalSpent:v})).sort((a,b)=>b.TotalSpent-a.TotalSpent).map(x=>`{ Customer: "${x.Customer}", TotalSpent: ${x.TotalSpent} }`).join('\n');
+      })()
+    },
+    // 12 - SelectMany
+    {
+      title: "所有員工技能清單",
+      topic: "SelectMany", difficulty: "hard", diffLabel: "困難",
+      description: "取出所有員工的<strong>技能 (Skills)</strong> 並攤平成一維陣列，再<strong>去除重複 (Distinct)</strong>，依字母排序。",
+      concept: "<code>SelectMany</code> 把巢狀集合攤平成單一序列。<br><code>employees.SelectMany(e => e.Skills)</code> 會展開每人的技能陣列。",
+      dataName: "employees", data: employees, columns: ["Name","Department","Salary","Years","Skills"],
+      get displayData() { return employees.map(e=>({...e, Skills: e.Skills.join(', ')})); },
+      placeholder: "employees.SelectMany(e => e.Skills).Distinct().OrderBy(s => s)",
+      hint: "SelectMany 展開 Skills → Distinct 去重 → OrderBy 排序",
+      validate: (result, data) => {
+        const all = [...new Set(data.flatMap(e=>e.Skills))].sort();
+        return deepEqual(result, all);
+      },
+      expectedDisplay: JSON.stringify([...new Set(employees.flatMap(e=>e.Skills))].sort(), null, 2)
+    },
+    // 13 - Complex: Where + GroupBy + Average
+    {
+      title: "各科系 A 級生平均分數",
+      topic: "Where + GroupBy + Average", difficulty: "hard", diffLabel: "困難",
+      description: "先篩選<strong>等級為 A</strong> 的學生，再依<strong>科系分組</strong>，計算每組的<strong>平均分數</strong>。<br>格式：<code>[{ Department: \"...\", AvgScore: N }, ...]</code>",
+      concept: "複合查詢：先篩選(Where)、再分組(GroupBy)、再聚合(Average)。<br>LINQ 的強大之處在於可以自由組合這些操作。",
+      dataName: "students", data: students, columns: ["Name","Age","Grade","Score","Department"],
+      placeholder: "students.Where(...).GroupBy(...).Select(g => new { ... })",
+      hint: "Where(Grade==\"A\") → GroupBy(Department) → Select 出 Department 和 Average(Score)",
+      validate: (result, data) => {
+        const as = data.filter(s=>s.Grade==="A");
+        const g = {};
+        as.forEach(s=>{ if(!g[s.Department])g[s.Department]=[]; g[s.Department].push(s.Score); });
+        const expected = Object.entries(g).map(([k,v])=>({Department:k,AvgScore:v.reduce((a,b)=>a+b,0)/v.length}));
+        return deepEqual(sortByKey(result,'Department'), sortByKey(expected,'Department'));
+      },
+      expectedDisplay: (() => {
+        const as = students.filter(s=>s.Grade==="A");
+        const g = {};
+        as.forEach(s=>{ if(!g[s.Department])g[s.Department]=[]; g[s.Department].push(s.Score); });
+        return Object.entries(g).map(([k,v])=>`{ Department: "${k}", AvgScore: ${v.reduce((a,b)=>a+b,0)/v.length} }`).join('\n');
+      })()
+    },
+    // 14 - Complex query
+    {
+      title: "高薪資深工程師",
+      topic: "Where (複合條件)", difficulty: "hard", diffLabel: "困難",
+      description: "找出<strong>工程部、年資 5 年以上、薪水超過 60000</strong> 的員工姓名，依薪水由高到低排序。",
+      concept: "Where 中可以用 <code>&&</code>（且）和 <code>||</code>（或）組合多個條件。",
+      dataName: "employees", data: employees, columns: ["Name","Department","Salary","Years","Skills"],
+      get displayData() { return employees.map(e=>({...e, Skills: e.Skills.join(', ')})); },
+      placeholder: "employees.Where(e => ... && ... && ...).OrderByDescending(e => e.Salary).Select(e => e.Name)",
+      hint: "Where 中同時檢查 Department==\"工程部\" && Years>=5 && Salary>60000",
+      validate: (result, data) => {
+        const expected = data.filter(e=>e.Department==="工程部"&&e.Years>=5&&e.Salary>60000).sort((a,b)=>b.Salary-a.Salary).map(e=>e.Name);
+        return deepEqual(result, expected);
+      },
+      expectedDisplay: JSON.stringify(employees.filter(e=>e.Department==="工程部"&&e.Years>=5&&e.Salary>60000).sort((a,b)=>b.Salary-a.Salary).map(e=>e.Name), null, 2)
+    },
+    // 15 - Expert
+    {
+      title: "客戶購買品項分析",
+      topic: "GroupBy + Select + OrderBy", difficulty: "expert", diffLabel: "專家",
+      description: "列出每位客戶購買的<strong>不重複商品名稱數量</strong>，以及<strong>平均每筆訂單金額</strong>，依不重複品項數<strong>由多到少</strong>排序。<br>格式：<code>[{ Customer, UniqueProducts, AvgOrderAmount }, ...]</code>",
+      concept: "這題綜合了 GroupBy、Select、Distinct、Count、Average 和排序——是一道考驗整體 LINQ 功力的題目！",
+      dataName: "orders", data: orders, columns: ["Id","Customer","Product","Amount","Total","Date"],
+      placeholder: "orders.GroupBy(o => o.Customer).Select(g => new { ... }).OrderByDescending(...)",
+      hint: "GroupBy Customer → 每組中 Select(Product).Distinct().Count() 取品項數，Average(Total) 取均額",
+      validate: (result, data) => {
+        const g = {};
+        data.forEach(o => {
+          if (!g[o.Customer]) g[o.Customer] = { products: new Set(), totals: [] };
+          g[o.Customer].products.add(o.Product);
+          g[o.Customer].totals.push(o.Total);
+        });
+        const expected = Object.entries(g).map(([k,v]) => ({
+          Customer: k,
+          UniqueProducts: v.products.size,
+          AvgOrderAmount: v.totals.reduce((a,b)=>a+b,0) / v.totals.length
+        })).sort((a,b) => b.UniqueProducts - a.UniqueProducts);
+        return deepEqual(result, expected);
+      },
+      expectedDisplay: (() => {
+        const g = {};
+        orders.forEach(o => {
+          if (!g[o.Customer]) g[o.Customer] = { products: new Set(), totals: [] };
+          g[o.Customer].products.add(o.Product);
+          g[o.Customer].totals.push(o.Total);
+        });
+        return Object.entries(g).map(([k,v]) => ({
+          Customer: k,
+          UniqueProducts: v.products.size,
+          AvgOrderAmount: v.totals.reduce((a,b)=>a+b,0) / v.totals.length
+        })).sort((a,b) => b.UniqueProducts - a.UniqueProducts)
+        .map(x => `{ Customer: "${x.Customer}", UniqueProducts: ${x.UniqueProducts}, AvgOrderAmount: ${x.AvgOrderAmount} }`).join('\n');
+      })()
+    }
+  ];
+
+  // ═══════════════════════════════════════
+  //  LINQ EVALUATOR
+  // ═══════════════════════════════════════
+  function evaluateLinq(code, dataSets) {
+    // Normalize C# syntax to JavaScript
+    let js = code.trim();
+
+    // Remove trailing semicolons
+    js = js.replace(/;\s*$/, '');
+
+    // Handle new { Prop = val, ... } → { Prop: val, ... }
+    js = js.replace(/new\s*\{/g, '({');
+    js = js.replace(/\(\{([^}]*)\}/g, (match, inner) => {
+      const fixed = inner.replace(/(\w+)\s*=\s*/g, '$1: ');
+      return '({' + fixed + '}';
+    });
+    // Close the parens for object literals
+    let openCount = (js.match(/\(\{/g)||[]).length;
+    let closeObjCount = (js.match(/\}\)/g)||[]).length;
+    // Auto-close if needed
+    // Actually let's handle this more carefully
+
+    // Map LINQ methods to JS array methods
+    // .Where(pred) → .filter(pred)
+    js = js.replace(/\.Where\s*\(/g, '.filter(');
+    // .Select(proj) → .map(proj)
+    js = js.replace(/\.Select\s*\(/g, '.map(');
+    // .SelectMany(proj) → .flatMap(proj)
+    js = js.replace(/\.SelectMany\s*\(/g, '.flatMap(');
+    // .OrderBy(key) → .sort(...)  -- need special handling
+    js = js.replace(/\.OrderBy\s*\(([^)]+)\)/g, '.slice().sort((a__,b__)=>{const fn__=$1;return fn__(a__)>fn__(b__)?1:fn__(a__)<fn__(b__)?-1:0})');
+    js = js.replace(/\.OrderByDescending\s*\(([^)]+)\)/g, '.slice().sort((a__,b__)=>{const fn__=$1;return fn__(a__)<fn__(b__)?1:fn__(a__)>fn__(b__)?-1:0})');
+    js = js.replace(/\.ThenBy\s*\(([^)]+)\)/g, ''); // Simplified — already sorted
+    // .First() → [0]
+    js = js.replace(/\.First\s*\(\s*\)/g, '[0]');
+    // .FirstOrDefault() → ([0] || null)
+    js = js.replace(/\.FirstOrDefault\s*\(\s*\)/g, '[0]');
+    // .Last() → .slice(-1)[0]
+    js = js.replace(/\.Last\s*\(\s*\)/g, '.slice(-1)[0]');
+    // .Count(pred) → .filter(pred).length  or .Count() → .length
+    js = js.replace(/\.Count\s*\(\s*\)/g, '.length');
+    js = js.replace(/\.Count\s*\(([^)]+)\)/g, '.filter($1).length');
+    // .Sum(sel) → .reduce((acc,x)=>acc+sel(x),0)
+    js = js.replace(/\.Sum\s*\(([^)]+)\)/g, '.reduce((acc__,x__)=>acc__+($1)(x__),0)');
+    // .Average(sel) → custom
+    js = js.replace(/\.Average\s*\(([^)]+)\)/g, '._avg_($1)');
+    // .Min(sel) → custom
+    js = js.replace(/\.Min\s*\(([^)]+)\)/g, '.reduce((m__,x__)=>Math.min(m__,($1)(x__)),Infinity)');
+    // .Max(sel) → custom
+    js = js.replace(/\.Max\s*\(([^)]+)\)/g, '.reduce((m__,x__)=>Math.max(m__,($1)(x__)),-Infinity)');
+    // .Any(pred) → .some(pred)
+    js = js.replace(/\.Any\s*\(([^)]+)\)/g, '.some($1)');
+    js = js.replace(/\.Any\s*\(\s*\)/g, '.length > 0');
+    // .All(pred) → .every(pred)
+    js = js.replace(/\.All\s*\(([^)]+)\)/g, '.every($1)');
+    // .Distinct() → ._distinct_()
+    js = js.replace(/\.Distinct\s*\(\s*\)/g, '._distinct_()');
+    // .Take(n) → .slice(0, n)
+    js = js.replace(/\.Take\s*\((\d+)\)/g, '.slice(0,$1)');
+    // .Skip(n) → .slice(n)
+    js = js.replace(/\.Skip\s*\((\d+)\)/g, '.slice($1)');
+    // .ToList() / .ToArray() → (no-op)
+    js = js.replace(/\.(ToList|ToArray)\s*\(\s*\)/g, '');
+    // .Contains(val) → .includes(val)
+    js = js.replace(/\.Contains\s*\(/g, '.includes(');
+
+    // Handle GroupBy specially
+    // .GroupBy(keySelector) → ._groupBy_(keySelector)
+    js = js.replace(/\.GroupBy\s*\(([^)]+)\)/g, '._groupBy_($1)');
+
+    // Handle g.Key
+    js = js.replace(/\.Key/g, '.Key');
+
+    // Fix new object from groups: ({ ... })  → close parens
+    // Balance ( and )
+    js = js.replace(/\(\{([^}]+)\}\s*(?!\))/g, '({$1})');
+
+    // Lambda arrow syntax is same in C# and JS: (x) => x.Prop or x => x.Prop
+
+    // Build sandboxed eval
+    // Add helper methods to Array prototype in sandbox
+    const sandbox = `
+      const _proto_ = Array.prototype;
+      if(!_proto_._distinct_) {
+        _proto_._distinct_ = function() {
+          if(this.length===0) return [];
+          if(typeof this[0]==='object') return [...new Map(this.map(x=>[JSON.stringify(x),x])).values()];
+          return [...new Set(this)];
+        };
+        _proto_._groupBy_ = function(keyFn) {
+          const groups = {};
+          for(const item of this) {
+            const key = keyFn(item);
+            if(!groups[key]) groups[key] = [];
+            groups[key].push(item);
+          }
+          return Object.entries(groups).map(([k,v]) => {
+            const arr = v;
+            arr.Key = isNaN(k)?k:Number(k);
+            if(typeof arr.Key === 'string' && arr.Key === k) arr.Key = k;
+            arr.Count = function(pred) { return pred ? arr.filter(pred).length : arr.length; };
+            arr.Sum = function(sel) { return arr.reduce((a,x)=>a+sel(x),0); };
+            arr.Average = function(sel) { return arr.reduce((a,x)=>a+sel(x),0)/arr.length; };
+            arr.Min = function(sel) { return Math.min(...arr.map(sel)); };
+            arr.Max = function(sel) { return Math.max(...arr.map(sel)); };
+            arr.Select = function(proj) { return arr.map(proj); };
+            arr.Where = function(pred) { return arr.filter(pred); };
+            arr.Distinct = function() { return [...new Set(arr)]; };
+            return arr;
+          });
+        };
+        _proto_._avg_ = function(sel) {
+          return this.reduce((a,x)=>a+sel(x),0)/this.length;
+        };
+      }
+      const students = ${JSON.stringify(dataSets.students)};
+      const products = ${JSON.stringify(dataSets.products)};
+      const orders = ${JSON.stringify(dataSets.orders)};
+      const employees = ${JSON.stringify(dataSets.employees.map(e=>({...e})))};
+      ${js}
+    `;
+
+    try {
+      const fn = new Function(sandbox);
+      // Wrap to return result
+      const wrapCode = `
+        ${sandbox.split('\n').slice(0,-1).join('\n')}
+        return (${js});
+      `;
+      const result = new Function(wrapCode)();
+      return { success: true, result };
+    } catch(e) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  function deepEqual(a, b) {
+    if (a === b) return true;
+    if (typeof a !== typeof b) return false;
+    if (typeof a === 'number') return Math.abs(a - b) < 0.01;
+    if (Array.isArray(a) && Array.isArray(b)) {
+      if (a.length !== b.length) return false;
+      return a.every((v,i) => deepEqual(v, b[i]));
+    }
+    if (typeof a === 'object' && a !== null && b !== null) {
+      const ka = Object.keys(a).sort(), kb = Object.keys(b).sort();
+      if (ka.length !== kb.length) return false;
+      return ka.every((k,i) => k === kb[i] && deepEqual(a[k], b[k]));
+    }
+    return false;
+  }
+
+  function sortByKey(arr, key) {
+    return [...arr].sort((a,b) => String(a[key]).localeCompare(String(b[key])));
+  }
+
+  // ═══════════════════════════════════════
+  //  ALPINE COMPONENT
+  // ═══════════════════════════════════════
+  return {
+    challenges: challenges.map(ch => ({...ch, passed: false})),
+    current: 0,
+    userCode: '',
+    result: null,
+    resultMsg: '',
+    actualOutput: '',
+    showHint: false,
+    showRef: false,
+    toasts: [],
+    toastId: 0,
+
+    get ch() { return this.challenges[this.current]; },
+    get passedCount() { return this.challenges.filter(c=>c.passed).length; },
+
+    init() {
+      // Load progress
+      try {
+        const saved = JSON.parse(localStorage.getItem('linq-challenge-progress') || '[]');
+        saved.forEach((passed, i) => { if(i < this.challenges.length) this.challenges[i].passed = passed; });
+      } catch(e) {}
+      // Set display data
+      for (const ch of this.challenges) {
+        if (!ch.displayData) ch.displayData = ch.data;
+      }
+    },
+
+    selectLevel(i) {
+      if (i < 0 || i >= this.challenges.length) return;
+      this.current = i;
+      this.userCode = '';
+      this.result = null;
+      this.resultMsg = '';
+      this.actualOutput = '';
+      this.showHint = false;
+    },
+
+    resetCode() {
+      this.userCode = '';
+      this.result = null;
+      this.resultMsg = '';
+      this.actualOutput = '';
+    },
+
+    runCode() {
+      if (!this.userCode.trim()) return;
+      this.result = null;
+      this.actualOutput = '';
+
+      const dataSets = { students, products, orders, employees };
+      const evalResult = evaluateLinq(this.userCode, dataSets);
+
+      if (!evalResult.success) {
+        this.result = 'fail';
+        this.resultMsg = '語法錯誤：' + evalResult.error;
+        return;
+      }
+
+      const val = evalResult.result;
+      const ch = this.challenges[this.current];
+
+      if (ch.validate(val, ch.data)) {
+        this.result = 'pass';
+        this.resultMsg = getPassMessage();
+        ch.passed = true;
+        this.saveProgress();
+
+        if (this.passedCount === this.challenges.length) {
+          this.showToast('🏆 全部通關！你是 LINQ 大師！');
+          this.fireConfetti();
+        } else {
+          this.fireConfetti();
+        }
+      } else {
+        this.result = 'fail';
+        this.resultMsg = '輸出結果與期望不符，請再試試！';
+        try {
+          this.actualOutput = typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val);
+        } catch(e) {
+          this.actualOutput = String(val);
+        }
+      }
+    },
+
+    saveProgress() {
+      localStorage.setItem('linq-challenge-progress', JSON.stringify(this.challenges.map(c => c.passed)));
+    },
+
+    showToast(text) {
+      const t = { id: ++this.toastId, text };
+      this.toasts.push(t);
+      setTimeout(() => { this.toasts = this.toasts.filter(x => x.id !== t.id); }, 2500);
+    },
+
+    fireConfetti() {
+      const canvas = this.$refs.confetti;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      const pieces = [];
+      const colors = ['#ef4444','#f97316','#fbbf24','#34d399','#06b6d4','#8b5cf6','#ec4899'];
+      for (let i = 0; i < 120; i++) {
+        pieces.push({
+          x: Math.random() * canvas.width,
+          y: -10 - Math.random() * 200,
+          vx: (Math.random() - 0.5) * 6,
+          vy: 2 + Math.random() * 4,
+          size: 4 + Math.random() * 6,
+          color: colors[Math.floor(Math.random()*colors.length)],
+          rot: Math.random() * 360,
+          rotV: (Math.random()-0.5) * 10
+        });
+      }
+      let frame = 0;
+      const animate = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let alive = false;
+        for (const p of pieces) {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.05;
+          p.rot += p.rotV;
+          if (p.y < canvas.height + 20) alive = true;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot * Math.PI / 180);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size * 0.6);
+          ctx.restore();
+        }
+        frame++;
+        if (alive && frame < 180) requestAnimationFrame(animate);
+        else ctx.clearRect(0, 0, canvas.width, canvas.height);
+      };
+      animate();
+    }
+  };
+}
+
+function getPassMessage() {
+  const msgs = [
+    '太厲害了！完美的 LINQ 查詢！',
+    'LINQ 功力深厚！繼續加油！',
+    '漂亮！這就是 LINQ 的優雅之處！',
+    '答對了！你對 LINQ 的理解越來越深！',
+    '完美通過！C# 大師之路就在眼前！',
+    '正確！LINQ 在你手中已是神兵利器！',
+    '太強了！這題難不倒你！'
+  ];
+  return msgs[Math.floor(Math.random()*msgs.length)];
+}
+</script>
+</body>
+</html>
