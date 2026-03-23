@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐸 瘋狂青蛙過馬路</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; align-items: center; }
+
+/* --- UI overlay --- */
+#ui-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; pointer-events: none;
+}
+#ui-overlay > div { pointer-events: auto; }
+
+.panel {
+  background: rgba(15,15,35,.95); border: 1px solid rgba(99,102,241,.3);
+  border-radius: 16px; padding: 40px; text-align: center;
+  box-shadow: 0 0 60px rgba(99,102,241,.15); max-width: 520px; width: 90%;
+}
+.panel h1 { font-size: 2.4rem; margin-bottom: 8px; }
+.panel h2 { font-size: 1.5rem; color: #a5b4fc; margin-bottom: 16px; }
+.panel p { color: #94a3b8; margin-bottom: 6px; line-height: 1.6; }
+
+.btn {
+  display: inline-block; padding: 12px 32px; border-radius: 10px;
+  font-size: 1.05rem; font-weight: 700; cursor: pointer; border: none;
+  transition: all .2s; margin: 6px;
+}
+.btn-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(99,102,241,.4); }
+.btn-secondary { background: rgba(99,102,241,.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,.3); }
+.btn-secondary:hover { background: rgba(99,102,241,.25); }
+.btn-back { position: fixed; top: 16px; left: 16px; z-index: 200; background: rgba(30,30,60,.8); color: #a5b4fc; border: 1px solid rgba(99,102,241,.3); border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: .9rem; text-decoration: none; }
+.btn-back:hover { background: rgba(99,102,241,.2); }
+
+/* HUD */
+#hud {
+  position: fixed; top: 0; left: 0; width: 100%; z-index: 50;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 20px; background: rgba(10,10,26,.85);
+  border-bottom: 1px solid rgba(99,102,241,.2);
+  font-weight: 600; font-size: .95rem;
+}
+#hud .hud-item { display: flex; align-items: center; gap: 6px; }
+#hud .hud-item span { color: #a5b4fc; }
+
+/* power-up indicators */
+.powerup-active {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  z-index: 50; display: flex; gap: 8px;
+}
+.pu-badge {
+  background: rgba(15,15,35,.9); border: 1px solid rgba(250,204,21,.4);
+  border-radius: 8px; padding: 4px 12px; font-size: .85rem; color: #fbbf24;
+}
+
+/* skin selector */
+.skin-grid { display: flex; gap: 12px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }
+.skin-option {
+  width: 56px; height: 56px; border-radius: 12px; display: flex; align-items: center;
+  justify-content: center; font-size: 2rem; cursor: pointer;
+  border: 2px solid rgba(99,102,241,.2); background: rgba(30,30,60,.6);
+  transition: all .2s;
+}
+.skin-option:hover, .skin-option.selected { border-color: #6366f1; background: rgba(99,102,241,.15); transform: scale(1.1); }
+
+/* combo popup */
+.combo-popup {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  font-size: 2.5rem; font-weight: 900; color: #fbbf24; z-index: 60;
+  text-shadow: 0 0 20px rgba(250,204,21,.6); pointer-events: none;
+  animation: comboPop .8s ease-out forwards;
+}
+@keyframes comboPop {
+  0% { opacity: 1; transform: translate(-50%,-50%) scale(.5); }
+  50% { transform: translate(-50%,-50%) scale(1.3); }
+  100% { opacity: 0; transform: translate(-50%,-80%) scale(1); }
+}
+
+/* night mode vignette */
+.night-vignette {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 40;
+  background: radial-gradient(circle 160px at var(--fx) var(--fy), transparent 0%, rgba(0,0,0,.92) 100%);
+}
+
+canvas { display: block; }
+
+/* settings */
+.settings-row { display: flex; align-items: center; justify-content: space-between; margin: 8px 0; }
+.settings-row label { color: #a5b4fc; font-size: .9rem; }
+.settings-row select, .settings-row input {
+  background: rgba(30,30,60,.8); color: #e2e8f0; border: 1px solid rgba(99,102,241,.3);
+  border-radius: 6px; padding: 4px 8px; font-size: .9rem;
+}
+</style>
+</head>
+<body>
+
+<a href="../index.html" class="btn-back">← 返回大廳</a>
+<canvas id="game"></canvas>
+
+<!-- HUD -->
+<div id="hud" style="display:none;">
+  <div class="hud-item">❤️ <span id="hud-lives">3</span></div>
+  <div class="hud-item">🏆 <span id="hud-score">0</span></div>
+  <div class="hud-item">⭐ <span id="hud-combo">x1</span></div>
+  <div class="hud-item">🎯 關卡 <span id="hud-level">1</span></div>
+  <div class="hud-item">🪙 <span id="hud-coins">0</span></div>
+</div>
+
+<!-- active powerups display -->
+<div class="powerup-active" id="pu-display"></div>
+
+<!-- night vignette -->
+<div class="night-vignette" id="night-vignette" style="display:none;"></div>
+
+<!-- UI overlay -->
+<div id="ui-overlay">
+  <div id="menu-panel" class="panel">
+    <h1>🐸 瘋狂青蛙過馬路</h1>
+    <h2>Crazy Frogger</h2>
+    <p>穿越車流、跳上木頭、閃避火車<br>收集金幣與道具，挑戰無盡關卡！</p>
+    <div style="margin: 20px 0;">
+      <p style="color:#a5b4fc; font-size:.85rem;">選擇你的角色</p>
+      <div class="skin-grid" id="skin-selector"></div>
+    </div>
+    <div style="margin: 16px 0; text-align: left; max-width: 320px; margin-left: auto; margin-right: auto;">
+      <div class="settings-row">
+        <label>難度</label>
+        <select id="difficulty">
+          <option value="easy">簡單</option>
+          <option value="normal" selected>普通</option>
+          <option value="hard">困難</option>
+          <option value="insane">瘋狂</option>
+        </select>
+      </div>
+    </div>
+    <p style="font-size:.8rem; color:#64748b; margin-top:12px;">操作：方向鍵 / WASD / 觸控滑動</p>
+    <button class="btn btn-primary" onclick="startGame()">🎮 開始遊戲</button>
+    <div style="margin-top:12px; font-size:.8rem; color:#475569;">
+      最高分：<span id="best-score">0</span>　最遠關卡：<span id="best-level">0</span>
+    </div>
+  </div>
+</div>
+
+<!-- Game Over panel (hidden) -->
+<div id="gameover-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:150; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center;">
+  <div class="panel">
+    <h1 id="go-title">💀 遊戲結束</h1>
+    <p>分數：<span id="go-score" style="color:#fbbf24; font-weight:700;"></span></p>
+    <p>關卡：<span id="go-level" style="color:#a5b4fc; font-weight:700;"></span></p>
+    <p>金幣：<span id="go-coins" style="color:#fbbf24; font-weight:700;"></span></p>
+    <p id="go-new-record" style="color:#f472b6; font-weight:700; display:none;">🎉 新紀錄！</p>
+    <div style="margin-top:16px;">
+      <button class="btn btn-primary" onclick="startGame()">🔄 重新挑戰</button>
+      <button class="btn btn-secondary" onclick="showMenu()">🏠 回主選單</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== CONFIG ====================
+const SKINS = [
+  { emoji: '🐸', name: '經典蛙' },
+  { emoji: '🐢', name: '烏龜哥' },
+  { emoji: '🐥', name: '小雞仔' },
+  { emoji: '🐱', name: '貓貓' },
+  { emoji: '🐶', name: '汪汪' },
+  { emoji: '🦊', name: '狐狸' },
+  { emoji: '🐰', name: '兔兔' },
+  { emoji: '👾', name: '外星人' },
+];
+
+const POWERUP_TYPES = [
+  { type: 'shield', emoji: '🛡️', name: '護盾', duration: 5000, color: '#60a5fa' },
+  { type: 'speed', emoji: '⚡', name: '加速', duration: 4000, color: '#fbbf24' },
+  { type: 'tiny', emoji: '🔬', name: '縮小', duration: 5000, color: '#a78bfa' },
+  { type: 'slow', emoji: '🕐', name: '慢動作', duration: 4000, color: '#34d399' },
+  { type: 'magnet', emoji: '🧲', name: '磁鐵', duration: 6000, color: '#f472b6' },
+  { type: 'double', emoji: '✖️', name: '雙倍分', duration: 8000, color: '#fb923c' },
+];
+
+const VEHICLE_TYPES = [
+  { emoji: '🚗', w: 1.1, speed: 1, name: '轎車' },
+  { emoji: '🚙', w: 1.1, speed: 0.8, name: 'SUV' },
+  { emoji: '🚕', w: 1.1, speed: 1.2, name: '計程車' },
+  { emoji: '🚌', w: 1.8, speed: 0.7, name: '公車' },
+  { emoji: '🚛', w: 1.8, speed: 0.6, name: '卡車' },
+  { emoji: '🚒', w: 1.8, speed: 0.9, name: '消防車' },
+  { emoji: '🏎️', w: 1.0, speed: 1.8, name: '賽車' },
+  { emoji: '🚜', w: 1.4, speed: 0.4, name: '拖拉機' },
+  { emoji: '🚂', w: 3.0, speed: 2.0, name: '火車' },
+  { emoji: '🏍️', w: 0.8, speed: 1.5, name: '機車' },
+];
+
+const LOG_TYPES = [
+  { emoji: '🪵', w: 2.0, speed: 0.6 },
+  { emoji: '🪵', w: 3.0, speed: 0.5 },
+  { emoji: '🐊', w: 1.5, speed: 0.7, dangerous: true },  // croc - can chomp!
+];
+
+const DIFFICULTY = {
+  easy:   { speedMul: 0.7, spawnMul: 0.7, lives: 5, nightStart: 99 },
+  normal: { speedMul: 1.0, spawnMul: 1.0, lives: 3, nightStart: 5 },
+  hard:   { speedMul: 1.3, spawnMul: 1.3, lives: 2, nightStart: 3 },
+  insane: { speedMul: 1.6, spawnMul: 1.6, lives: 1, nightStart: 2 },
+};
+
+// ==================== GAME STATE ====================
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+let W, H, CELL, COLS, ROWS;
+let state = 'menu'; // menu | playing | dead | gameover
+let selectedSkin = 0;
+let diff;
+let frog, lanes, coins, powerups, particles, activePU;
+let score, combo, comboTimer, lives, level, totalCoins;
+let isNight, lastTime, animFrame;
+let touchStart = null;
+let moveQueue = [];
+let frogAnimTimer = 0;
+let frogSquish = 0;
+let shakeTimer = 0;
+let comboPopups = [];
+let levelTransition = 0;
+let crocTimers = {};
+
+// best scores
+let bestScore = parseInt(localStorage.getItem('frogger_best_score') || '0');
+let bestLevel = parseInt(localStorage.getItem('frogger_best_level') || '0');
+
+// ==================== INIT ====================
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W;
+  canvas.height = H;
+  CELL = Math.min(Math.floor(W / 15), Math.floor(H / 18), 48);
+  COLS = Math.floor(W / CELL);
+  ROWS = Math.floor(H / CELL);
+}
+window.addEventListener('resize', () => { resize(); });
+resize();
+
+// skin selector
+const skinSel = document.getElementById('skin-selector');
+SKINS.forEach((s, i) => {
+  const div = document.createElement('div');
+  div.className = 'skin-option' + (i === 0 ? ' selected' : '');
+  div.textContent = s.emoji;
+  div.title = s.name;
+  div.onclick = () => {
+    document.querySelectorAll('.skin-option').forEach(el => el.classList.remove('selected'));
+    div.classList.add('selected');
+    selectedSkin = i;
+  };
+  skinSel.appendChild(div);
+});
+
+document.getElementById('best-score').textContent = bestScore;
+document.getElementById('best-level').textContent = bestLevel;
+
+// ==================== LANE GENERATION ====================
+function generateLanes() {
+  lanes = [];
+  const totalLanes = Math.max(12, ROWS - 2);
+
+  // structure: safe → road section → safe → river section → safe (finish)
+  // scale with level
+  const roadCount = Math.min(3 + Math.floor(level / 2), 6);
+  const riverCount = Math.min(2 + Math.floor(level / 3), 4);
+  const trainCount = level >= 4 ? Math.min(Math.floor((level - 2) / 2), 2) : 0;
+
+  // safe zone (start)
+  lanes.push({ type: 'safe', y: 0 });
+
+  // road lanes
+  for (let i = 0; i < roadCount; i++) {
+    const dir = i % 2 === 0 ? 1 : -1;
+    const baseSpeed = (0.7 + Math.random() * 1.0) * diff.speedMul * (1 + level * 0.05);
+    const vtype = (level >= 6 && Math.random() < 0.12) ? VEHICLE_TYPES[8] : // train
+                  VEHICLE_TYPES[Math.floor(Math.random() * (VEHICLE_TYPES.length - 1))];
+    lanes.push({
+      type: 'road',
+      dir,
+      speed: baseSpeed * vtype.speed,
+      vehicleType: vtype,
+      vehicles: [],
+      spawnTimer: Math.random() * 120 + 40,
+      spawnInterval: (120 + Math.random() * 80) / diff.spawnMul,
+    });
+  }
+
+  // mid safe zone
+  lanes.push({ type: 'safe', y: 0 });
+
+  // river lanes
+  for (let i = 0; i < riverCount; i++) {
+    const dir = i % 2 === 0 ? 1 : -1;
+    const baseSpeed = (0.5 + Math.random() * 1) * diff.speedMul * (1 + level * 0.06);
+    const ltype = LOG_TYPES[Math.floor(Math.random() * LOG_TYPES.length)];
+    lanes.push({
+      type: 'river',
+      dir,
+      speed: baseSpeed * ltype.speed,
+      logType: ltype,
+      logs: [],
+      spawnTimer: Math.random() * 80 + 30,
+      spawnInterval: (80 + Math.random() * 50) / diff.spawnMul,
+    });
+  }
+
+  // train tracks (high level)
+  if (trainCount > 0) {
+    lanes.push({ type: 'safe', y: 0 });
+    for (let i = 0; i < trainCount; i++) {
+      const dir = i % 2 === 0 ? 1 : -1;
+      lanes.push({
+        type: 'road',
+        dir,
+        speed: 3.5 * diff.speedMul * (1 + level * 0.05),
+        vehicleType: VEHICLE_TYPES[8], // train
+        vehicles: [],
+        spawnTimer: Math.random() * 180 + 60,
+        spawnInterval: (160 + Math.random() * 60) / diff.spawnMul,
+        isTrain: true,
+      });
+    }
+  }
+
+  // finish safe zone
+  lanes.push({ type: 'finish', y: 0 });
+
+  // assign y positions (from bottom to top)
+  for (let i = 0; i < lanes.length; i++) {
+    lanes[i].y = H - (i + 1) * CELL;
+    lanes[i].index = i;
+  }
+
+  // spawn coins
+  coins = [];
+  const coinCount = 3 + level;
+  for (let i = 0; i < coinCount; i++) {
+    const laneIdx = 1 + Math.floor(Math.random() * (lanes.length - 2));
+    coins.push({
+      x: Math.random() * (W - CELL),
+      lane: laneIdx,
+      collected: false,
+      anim: Math.random() * Math.PI * 2,
+    });
+  }
+
+  // spawn powerups
+  powerups = [];
+  const puCount = Math.max(1, Math.floor(level / 2));
+  for (let i = 0; i < puCount; i++) {
+    const laneIdx = 1 + Math.floor(Math.random() * (lanes.length - 2));
+    const pt = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+    powerups.push({
+      x: Math.random() * (W - CELL),
+      lane: laneIdx,
+      type: pt,
+      collected: false,
+      anim: Math.random() * Math.PI * 2,
+    });
+  }
+}
+
+// ==================== FROG ====================
+function resetFrog() {
+  frog = {
+    x: Math.floor(COLS / 2) * CELL,
+    y: H - CELL,
+    targetX: Math.floor(COLS / 2) * CELL,
+    targetY: H - CELL,
+    lane: 0,
+    moving: false,
+    dir: 0, // 0=up 1=right 2=down 3=left
+    onLog: null,
+    dead: false,
+  };
+  frogSquish = 0;
+  moveQueue = [];
+}
+
+// ==================== PARTICLES ====================
+function spawnParticles(x, y, color, count, type) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * (type === 'explode' ? 8 : 4),
+      vy: (Math.random() - 0.5) * (type === 'explode' ? 8 : 4) - (type === 'rise' ? 3 : 0),
+      life: 1,
+      decay: 0.015 + Math.random() * 0.02,
+      color,
+      size: type === 'explode' ? 3 + Math.random() * 5 : 2 + Math.random() * 3,
+      type,
+    });
+  }
+}
+
+// ==================== GAME START ====================
+function startGame() {
+  const diffKey = document.getElementById('difficulty').value;
+  diff = DIFFICULTY[diffKey];
+
+  score = 0;
+  combo = 0;
+  comboTimer = 0;
+  lives = diff.lives;
+  level = 1;
+  totalCoins = 0;
+  activePU = {};
+  particles = [];
+  comboPopups = [];
+  levelTransition = 0;
+  crocTimers = {};
+
+  isNight = level >= diff.nightStart;
+
+  generateLanes();
+  resetFrog();
+
+  state = 'playing';
+  document.getElementById('ui-overlay').style.display = 'none';
+  document.getElementById('gameover-overlay').style.display = 'none';
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('night-vignette').style.display = isNight ? 'block' : 'none';
+
+  updateHUD();
+  if (!animFrame) { lastTime = performance.now(); loop(lastTime); }
+}
+
+function showMenu() {
+  state = 'menu';
+  cancelAnimationFrame(animFrame);
+  animFrame = null;
+  document.getElementById('ui-overlay').style.display = 'flex';
+  document.getElementById('gameover-overlay').style.display = 'none';
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('night-vignette').style.display = 'none';
+  document.getElementById('pu-display').innerHTML = '';
+  document.getElementById('best-score').textContent = bestScore;
+  document.getElementById('best-level').textContent = bestLevel;
+}
+
+function gameOver() {
+  state = 'gameover';
+  let newRecord = false;
+  if (score > bestScore) {
+    bestScore = score;
+    localStorage.setItem('frogger_best_score', String(bestScore));
+    newRecord = true;
+  }
+  if (level > bestLevel) {
+    bestLevel = level;
+    localStorage.setItem('frogger_best_level', String(bestLevel));
+  }
+  document.getElementById('go-score').textContent = score;
+  document.getElementById('go-level').textContent = level;
+  document.getElementById('go-coins').textContent = totalCoins;
+  document.getElementById('go-new-record').style.display = newRecord ? 'block' : 'none';
+  document.getElementById('go-title').textContent = newRecord ? '🎉 新紀錄！' : '💀 遊戲結束';
+  document.getElementById('gameover-overlay').style.display = 'flex';
+  document.getElementById('hud').style.display = 'none';
+}
+
+function nextLevel() {
+  level++;
+  isNight = level >= diff.nightStart;
+  document.getElementById('night-vignette').style.display = isNight ? 'block' : 'none';
+
+  // level bonus
+  const bonus = level * 100 * (activePU.double ? 2 : 1);
+  score += bonus;
+  comboPopups.push({ text: `關卡 ${level}！+${bonus}`, timer: 1.5, y: H / 2 });
+  levelTransition = 1.5;
+
+  generateLanes();
+  resetFrog();
+  updateHUD();
+}
+
+function updateHUD() {
+  document.getElementById('hud-lives').textContent = '❤️'.repeat(Math.max(0, lives));
+  document.getElementById('hud-score').textContent = score;
+  document.getElementById('hud-combo').textContent = combo > 1 ? `x${combo}` : 'x1';
+  document.getElementById('hud-level').textContent = level;
+  document.getElementById('hud-coins').textContent = totalCoins;
+
+  // powerup badges
+  const puDiv = document.getElementById('pu-display');
+  puDiv.innerHTML = '';
+  for (const [key, pu] of Object.entries(activePU)) {
+    if (pu) {
+      const remaining = Math.ceil((pu.endTime - Date.now()) / 1000);
+      if (remaining > 0) {
+        const badge = document.createElement('div');
+        badge.className = 'pu-badge';
+        badge.textContent = `${pu.emoji} ${remaining}s`;
+        puDiv.appendChild(badge);
+      }
+    }
+  }
+}
+
+// ==================== INPUT ====================
+function tryMove(dx, dy) {
+  if (state !== 'playing' || frog.moving || frog.dead || levelTransition > 0) return;
+
+  const nx = frog.x + dx * CELL;
+  const ny = frog.y + dy * CELL;
+
+  if (nx < 0 || nx >= W - CELL * 0.5) return;
+  if (ny < lanes[lanes.length - 1].y - CELL || ny > H) return;
+
+  frog.targetX = nx;
+  frog.targetY = ny;
+  frog.moving = true;
+  frog.onLog = null;
+  frogSquish = 0.3;
+
+  if (dy === -1) frog.dir = 0;
+  else if (dx === 1) frog.dir = 1;
+  else if (dy === 1) frog.dir = 2;
+  else if (dx === -1) frog.dir = 3;
+
+  // update lane
+  if (dy !== 0) {
+    frog.lane = Math.max(0, Math.min(lanes.length - 1, frog.lane - dy));
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (state !== 'playing') return;
+  switch (e.key) {
+    case 'ArrowUp': case 'w': case 'W': tryMove(0, -1); break;
+    case 'ArrowDown': case 's': case 'S': tryMove(0, 1); break;
+    case 'ArrowLeft': case 'a': case 'A': tryMove(-1, 0); break;
+    case 'ArrowRight': case 'd': case 'D': tryMove(1, 0); break;
+  }
+  e.preventDefault();
+});
+
+// touch
+canvas.addEventListener('touchstart', e => {
+  touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, { passive: true });
+canvas.addEventListener('touchend', e => {
+  if (!touchStart || state !== 'playing') return;
+  const dx = e.changedTouches[0].clientX - touchStart.x;
+  const dy = e.changedTouches[0].clientY - touchStart.y;
+  const absDx = Math.abs(dx), absDy = Math.abs(dy);
+  if (Math.max(absDx, absDy) < 20) return;
+  if (absDx > absDy) tryMove(dx > 0 ? 1 : -1, 0);
+  else tryMove(0, dy > 0 ? 1 : -1);
+  touchStart = null;
+});
+
+// ==================== UPDATE ====================
+function update(dt) {
+  if (state !== 'playing') return;
+  if (levelTransition > 0) { levelTransition -= dt; return; }
+
+  const speedFactor = activePU.slow ? 0.5 : 1;
+  const frogSize = activePU.tiny ? CELL * 0.5 : CELL * 0.85;
+  const frogSpeed = activePU.speed ? CELL * 16 : CELL * 12;
+
+  // move frog smoothly
+  if (frog.moving) {
+    const dx = frog.targetX - frog.x;
+    const dy = frog.targetY - frog.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 2) {
+      frog.x = frog.targetX;
+      frog.y = frog.targetY;
+      frog.moving = false;
+    } else {
+      const step = frogSpeed * dt;
+      frog.x += (dx / dist) * Math.min(step, dist);
+      frog.y += (dy / dist) * Math.min(step, dist);
+    }
+  }
+
+  // frog squish animation
+  if (frogSquish > 0) frogSquish = Math.max(0, frogSquish - dt * 2);
+
+  // combo timer
+  if (combo > 0) {
+    comboTimer -= dt;
+    if (comboTimer <= 0) { combo = 0; }
+  }
+
+  // update active powerups
+  const now = Date.now();
+  for (const [key, pu] of Object.entries(activePU)) {
+    if (pu && now > pu.endTime) { delete activePU[key]; }
+  }
+
+  // update lanes
+  frog.onLog = null;
+  const currentLane = lanes[frog.lane];
+
+  for (const lane of lanes) {
+    if (lane.type === 'road') {
+      // spawn vehicles
+      lane.spawnTimer -= dt * 60;
+      if (lane.spawnTimer <= 0) {
+        lane.spawnTimer = lane.spawnInterval;
+        const vw = lane.vehicleType.w * CELL;
+        const startX = lane.dir > 0 ? -vw : W + vw;
+        lane.vehicles.push({ x: startX, w: vw });
+      }
+      // move vehicles
+      for (const v of lane.vehicles) {
+        v.x += lane.speed * lane.dir * CELL * dt * speedFactor;
+      }
+      // remove off-screen
+      lane.vehicles = lane.vehicles.filter(v =>
+        lane.dir > 0 ? v.x < W + v.w * 2 : v.x > -v.w * 2
+      );
+    }
+
+    if (lane.type === 'river') {
+      // spawn logs
+      lane.spawnTimer -= dt * 60;
+      if (lane.spawnTimer <= 0) {
+        lane.spawnTimer = lane.spawnInterval;
+        const lw = lane.logType.w * CELL;
+        const startX = lane.dir > 0 ? -lw : W + lw;
+        const id = Math.random().toString(36).slice(2, 8);
+        lane.logs.push({ x: startX, w: lw, id, chomping: false, chompTimer: 0 });
+        // croc chomp timer
+        if (lane.logType.dangerous) {
+          crocTimers[id] = { nextChomp: 3 + Math.random() * 5, chomping: false, chompDuration: 1.2 };
+        }
+      }
+      // move logs
+      for (const l of lane.logs) {
+        l.x += lane.speed * lane.dir * CELL * dt * speedFactor;
+        // croc logic
+        if (crocTimers[l.id]) {
+          const ct = crocTimers[l.id];
+          if (ct.chomping) {
+            ct.chompDuration -= dt;
+            l.chomping = true;
+            if (ct.chompDuration <= 0) {
+              ct.chomping = false;
+              ct.chompDuration = 1.2;
+              ct.nextChomp = 3 + Math.random() * 5;
+              l.chomping = false;
+            }
+          } else {
+            ct.nextChomp -= dt;
+            l.chomping = false;
+            if (ct.nextChomp <= 0) { ct.chomping = true; }
+          }
+        }
+      }
+      lane.logs = lane.logs.filter(l => {
+        if (lane.dir > 0 ? l.x > W + l.w * 2 : l.x < -l.w * 2) {
+          delete crocTimers[l.id];
+          return false;
+        }
+        return true;
+      });
+    }
+  }
+
+  // collision detection
+  if (!frog.dead && !frog.moving) {
+    const fl = frog.x + (CELL - frogSize) / 2;
+    const fr = fl + frogSize;
+    const ft = frog.y + (CELL - frogSize) / 2;
+    const fb = ft + frogSize;
+
+    if (currentLane && currentLane.type === 'road') {
+      for (const v of currentLane.vehicles) {
+        const vl = v.x;
+        const vr = v.x + v.w;
+        const vt = currentLane.y;
+        const vb = currentLane.y + CELL;
+        if (fl < vr && fr > vl && ft < vb && fb > vt) {
+          if (activePU.shield) {
+            delete activePU.shield;
+            spawnParticles(frog.x + CELL / 2, frog.y + CELL / 2, '#60a5fa', 15, 'explode');
+          } else {
+            killFrog('hit');
+          }
+        }
+      }
+    }
+
+    if (currentLane && currentLane.type === 'river') {
+      let onAnyLog = false;
+      for (const l of currentLane.logs) {
+        const ll = l.x;
+        const lr = l.x + l.w;
+        const lt = currentLane.y;
+        const lb = currentLane.y + CELL;
+        if (fl < lr && fr > ll && ft < lb && fb > lt) {
+          if (l.chomping && currentLane.logType.dangerous) {
+            if (activePU.shield) {
+              delete activePU.shield;
+              spawnParticles(frog.x + CELL / 2, frog.y + CELL / 2, '#60a5fa', 15, 'explode');
+            } else {
+              killFrog('eaten');
+            }
+          } else {
+            onAnyLog = true;
+            frog.onLog = l;
+            frog.x += currentLane.speed * currentLane.dir * CELL * dt * speedFactor;
+            frog.targetX = frog.x;
+          }
+        }
+      }
+      if (!onAnyLog && !activePU.shield) {
+        killFrog('drown');
+      } else if (!onAnyLog && activePU.shield) {
+        // shield saves from drowning but keeps frog floating
+        frog.onLog = null;
+      }
+    }
+
+    // out of bounds
+    if (frog.x < -CELL || frog.x > W + CELL) {
+      killFrog('offscreen');
+    }
+
+    // coins (magnet + normal)
+    const magnetRange = activePU.magnet ? CELL * 4 : 0;
+    for (const coin of coins) {
+      if (coin.collected) continue;
+      const cy = lanes[coin.lane] ? lanes[coin.lane].y + CELL / 2 : 0;
+      const cx = coin.x + CELL / 2;
+      const frogCX = frog.x + CELL / 2;
+      const frogCY = frog.y + CELL / 2;
+      const d = Math.hypot(cx - frogCX, cy - frogCY);
+
+      // magnet pull
+      if (magnetRange > 0 && d < magnetRange && d > CELL * 0.5) {
+        const pull = 200 * dt;
+        coin.x += (frogCX - cx) / d * pull;
+      }
+
+      if (d < CELL * 0.8) {
+        coin.collected = true;
+        totalCoins++;
+        const pts = 10 * (activePU.double ? 2 : 1);
+        score += pts;
+        spawnParticles(cx, cy, '#fbbf24', 8, 'rise');
+      }
+    }
+
+    // powerups
+    for (const pu of powerups) {
+      if (pu.collected) continue;
+      const py = lanes[pu.lane] ? lanes[pu.lane].y + CELL / 2 : 0;
+      const px = pu.x + CELL / 2;
+      const frogCX = frog.x + CELL / 2;
+      const frogCY = frog.y + CELL / 2;
+      if (Math.hypot(px - frogCX, py - frogCY) < CELL * 0.8) {
+        pu.collected = true;
+        activePU[pu.type.type] = {
+          endTime: Date.now() + pu.type.duration,
+          emoji: pu.type.emoji,
+        };
+        spawnParticles(px, py, pu.type.color, 12, 'explode');
+        comboPopups.push({ text: `${pu.type.emoji} ${pu.type.name}！`, timer: 1.2, y: frog.y - 20 });
+      }
+    }
+
+    // reach finish
+    if (currentLane && currentLane.type === 'finish') {
+      combo++;
+      comboTimer = 8;
+      const pts = (50 + level * 20) * Math.max(1, combo) * (activePU.double ? 2 : 1);
+      score += pts;
+      spawnParticles(frog.x + CELL / 2, frog.y + CELL / 2, '#34d399', 25, 'explode');
+      if (combo > 1) {
+        comboPopups.push({ text: `🔥 ${combo} 連續！ +${pts}`, timer: 1.5, y: frog.y });
+      }
+      nextLevel();
+    }
+  }
+
+  // update particles
+  for (const p of particles) {
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.type === 'rise') p.vy -= 0.05;
+    p.life -= p.decay;
+  }
+  particles = particles.filter(p => p.life > 0);
+
+  // combo popups
+  for (const cp of comboPopups) { cp.timer -= dt; cp.y -= 30 * dt; }
+  comboPopups = comboPopups.filter(cp => cp.timer > 0);
+
+  // shake
+  if (shakeTimer > 0) shakeTimer -= dt;
+
+  // animate coins & powerups
+  for (const c of coins) c.anim += dt * 3;
+  for (const p of powerups) p.anim += dt * 4;
+
+  // night vignette
+  if (isNight) {
+    const v = document.getElementById('night-vignette');
+    v.style.setProperty('--fx', (frog.x + CELL / 2) + 'px');
+    v.style.setProperty('--fy', (frog.y + CELL / 2) + 'px');
+  }
+
+  updateHUD();
+}
+
+function killFrog(reason) {
+  if (frog.dead) return;
+  frog.dead = true;
+  lives--;
+  combo = 0;
+  shakeTimer = 0.4;
+
+  const cx = frog.x + CELL / 2;
+  const cy = frog.y + CELL / 2;
+
+  if (reason === 'hit') {
+    spawnParticles(cx, cy, '#ef4444', 20, 'explode');
+    comboPopups.push({ text: '💥 被車撞了！', timer: 1.2, y: cy });
+  } else if (reason === 'drown') {
+    spawnParticles(cx, cy, '#3b82f6', 15, 'rise');
+    comboPopups.push({ text: '🌊 溺水了！', timer: 1.2, y: cy });
+  } else if (reason === 'eaten') {
+    spawnParticles(cx, cy, '#22c55e', 20, 'explode');
+    comboPopups.push({ text: '🐊 被鱷魚吃了！', timer: 1.2, y: cy });
+  } else {
+    spawnParticles(cx, cy, '#f472b6', 10, 'explode');
+  }
+
+  state = 'dead';
+  setTimeout(() => {
+    if (lives <= 0) {
+      gameOver();
+    } else {
+      resetFrog();
+      state = 'playing';
+    }
+  }, 1000);
+}
+
+// ==================== DRAW ====================
+function draw() {
+  // shake offset
+  let sx = 0, sy = 0;
+  if (shakeTimer > 0) {
+    sx = (Math.random() - 0.5) * 8;
+    sy = (Math.random() - 0.5) * 8;
+  }
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  // clear
+  ctx.fillStyle = '#0a0a1a';
+  ctx.fillRect(-10, -10, W + 20, H + 20);
+
+  // draw lanes
+  for (const lane of lanes) {
+    const ly = lane.y;
+
+    if (lane.type === 'safe' || lane.type === 'finish') {
+      ctx.fillStyle = lane.type === 'finish' ? '#0f2a0f' : '#111827';
+      ctx.fillRect(0, ly, W, CELL);
+      if (lane.type === 'finish') {
+        ctx.fillStyle = 'rgba(34,197,94,.15)';
+        ctx.fillRect(0, ly, W, CELL);
+        // draw flag pattern
+        ctx.font = `${CELL * 0.5}px serif`;
+        ctx.textAlign = 'center';
+        for (let x = CELL; x < W; x += CELL * 3) {
+          ctx.fillText('🏁', x, ly + CELL * 0.7);
+        }
+      }
+      // grass tufts for safe zones
+      if (lane.type === 'safe') {
+        ctx.fillStyle = '#1a2e05';
+        ctx.fillRect(0, ly, W, CELL);
+        ctx.font = `${CELL * 0.3}px serif`;
+        for (let x = 0; x < W; x += CELL * 1.5) {
+          ctx.fillText('🌿', x + (lane.index * 17) % 20, ly + CELL * 0.6);
+        }
+      }
+    }
+
+    if (lane.type === 'road') {
+      // road surface
+      ctx.fillStyle = lane.isTrain ? '#1a1520' : '#1c1c2e';
+      ctx.fillRect(0, ly, W, CELL);
+      // lane markings
+      if (lane.isTrain) {
+        // railroad tracks
+        ctx.strokeStyle = 'rgba(161,98,7,.4)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([12, 8]);
+        ctx.beginPath();
+        ctx.moveTo(0, ly + CELL * 0.3);
+        ctx.lineTo(W, ly + CELL * 0.3);
+        ctx.moveTo(0, ly + CELL * 0.7);
+        ctx.lineTo(W, ly + CELL * 0.7);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      } else {
+        ctx.strokeStyle = 'rgba(250,250,250,.08)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([CELL * 0.5, CELL * 0.5]);
+        ctx.beginPath();
+        ctx.moveTo(0, ly + CELL / 2);
+        ctx.lineTo(W, ly + CELL / 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // draw vehicles
+      ctx.font = `${CELL * 0.75}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (const v of lane.vehicles) {
+        // vehicle shadow
+        ctx.fillStyle = 'rgba(0,0,0,.3)';
+        ctx.fillRect(v.x + 3, ly + 3, v.w, CELL);
+
+        // headlights glow
+        if (isNight) {
+          const grd = ctx.createRadialGradient(
+            v.x + (lane.dir > 0 ? v.w : 0), ly + CELL / 2, 2,
+            v.x + (lane.dir > 0 ? v.w : 0), ly + CELL / 2, CELL * 2
+          );
+          grd.addColorStop(0, 'rgba(255,255,200,.3)');
+          grd.addColorStop(1, 'transparent');
+          ctx.fillStyle = grd;
+          ctx.fillRect(v.x - CELL, ly - CELL, v.w + CELL * 2, CELL * 3);
+        }
+
+        const emoji = lane.vehicleType.emoji;
+        const scale = lane.dir < 0 ? -1 : 1;
+        ctx.save();
+        ctx.translate(v.x + v.w / 2, ly + CELL / 2);
+        ctx.scale(scale, 1);
+        ctx.fillText(emoji, 0, 0);
+        // for long vehicles, repeat emoji
+        if (v.w > CELL * 1.5) {
+          ctx.fillText(emoji, -CELL * 0.6, 0);
+        }
+        if (v.w > CELL * 2.5) {
+          ctx.fillText(emoji, CELL * 0.6, 0);
+        }
+        ctx.restore();
+      }
+    }
+
+    if (lane.type === 'river') {
+      // water
+      ctx.fillStyle = '#0c1929';
+      ctx.fillRect(0, ly, W, CELL);
+      // water shimmer
+      const wTime = Date.now() * 0.001;
+      ctx.fillStyle = 'rgba(59,130,246,.08)';
+      for (let x = 0; x < W; x += CELL) {
+        const waveY = Math.sin(wTime * 2 + x * 0.05) * 3;
+        ctx.fillRect(x, ly + CELL / 2 + waveY - 2, CELL * 0.6, 4);
+      }
+
+      // draw logs
+      ctx.font = `${CELL * 0.65}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (const l of lane.logs) {
+        if (lane.logType.dangerous) {
+          // croc
+          ctx.font = `${CELL * 0.7}px serif`;
+          const crocEmoji = l.chomping ? '🐊' : '🐊';
+          // body
+          ctx.save();
+          ctx.translate(l.x + l.w / 2, ly + CELL / 2);
+          if (lane.dir < 0) ctx.scale(-1, 1);
+          ctx.fillText(crocEmoji, 0, 0);
+          ctx.restore();
+          // chomping indicator
+          if (l.chomping) {
+            ctx.fillStyle = 'rgba(239,68,68,.3)';
+            ctx.fillRect(l.x, ly, l.w, CELL);
+            ctx.font = `${CELL * 0.4}px serif`;
+            ctx.fillText('⚠️', l.x + l.w / 2, ly + CELL * 0.15);
+          }
+        } else {
+          // log
+          ctx.fillStyle = '#5c3a1e';
+          const logH = CELL * 0.6;
+          const logY = ly + (CELL - logH) / 2;
+          ctx.beginPath();
+          ctx.roundRect(l.x, logY, l.w, logH, logH / 2);
+          ctx.fill();
+          // wood texture
+          ctx.strokeStyle = 'rgba(92,58,30,.5)';
+          ctx.lineWidth = 1;
+          for (let lx = l.x + CELL * 0.3; lx < l.x + l.w - CELL * 0.3; lx += CELL * 0.4) {
+            ctx.beginPath();
+            ctx.arc(lx, logY + logH / 2, logH * 0.2, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        }
+      }
+    }
+  }
+
+  // draw coins
+  ctx.font = `${CELL * 0.5}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const c of coins) {
+    if (c.collected) continue;
+    const cy = lanes[c.lane] ? lanes[c.lane].y + CELL / 2 : 0;
+    const bounce = Math.sin(c.anim) * 4;
+    const scale = 0.9 + Math.sin(c.anim * 1.3) * 0.1;
+    ctx.save();
+    ctx.translate(c.x + CELL / 2, cy + bounce);
+    ctx.scale(scale, scale);
+    ctx.fillText('🪙', 0, 0);
+    ctx.restore();
+    // glow
+    ctx.fillStyle = `rgba(250,204,21,${0.1 + Math.sin(c.anim) * 0.05})`;
+    ctx.beginPath();
+    ctx.arc(c.x + CELL / 2, cy, CELL * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // draw powerups
+  ctx.font = `${CELL * 0.55}px serif`;
+  for (const pu of powerups) {
+    if (pu.collected) continue;
+    const py = lanes[pu.lane] ? lanes[pu.lane].y + CELL / 2 : 0;
+    const bounce = Math.sin(pu.anim) * 5;
+    const pulse = 0.85 + Math.sin(pu.anim * 1.5) * 0.15;
+    ctx.save();
+    ctx.translate(pu.x + CELL / 2, py + bounce);
+    ctx.scale(pulse, pulse);
+    ctx.fillText(pu.type.emoji, 0, 0);
+    ctx.restore();
+    // colored glow
+    const alpha = 0.15 + Math.sin(pu.anim) * 0.08;
+    ctx.fillStyle = pu.type.color + Math.round(alpha * 255).toString(16).padStart(2, '0');
+    ctx.beginPath();
+    ctx.arc(pu.x + CELL / 2, py, CELL * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // draw frog
+  if (!frog.dead) {
+    const frogEmoji = SKINS[selectedSkin].emoji;
+    const frogSize = activePU.tiny ? CELL * 0.55 : CELL * 0.85;
+    const cx = frog.x + CELL / 2;
+    const cy = frog.y + CELL / 2;
+
+    // shield glow
+    if (activePU.shield) {
+      ctx.strokeStyle = 'rgba(96,165,250,.5)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, CELL * 0.6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(96,165,250,.1)';
+      ctx.fill();
+    }
+
+    // speed trail
+    if (activePU.speed) {
+      ctx.fillStyle = 'rgba(250,204,21,.15)';
+      for (let i = 1; i <= 3; i++) {
+        const trailX = cx - (frog.dir === 1 ? i * 8 : frog.dir === 3 ? -i * 8 : 0);
+        const trailY = cy - (frog.dir === 0 ? -i * 8 : frog.dir === 2 ? i * 8 : 0);
+        ctx.beginPath();
+        ctx.arc(trailX, trailY, CELL * (0.3 - i * 0.05), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // rotation
+    const angles = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+    ctx.rotate(angles[frog.dir]);
+
+    // squish
+    const sq = frogSquish;
+    ctx.scale(1 - sq * 0.3, 1 + sq * 0.3);
+
+    ctx.font = `${frogSize}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(frogEmoji, 0, 0);
+    ctx.restore();
+  }
+
+  // particles
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // combo popups
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const cp of comboPopups) {
+    ctx.globalAlpha = Math.min(1, cp.timer);
+    ctx.font = 'bold 24px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#fbbf24';
+    ctx.strokeStyle = 'rgba(0,0,0,.7)';
+    ctx.lineWidth = 3;
+    ctx.strokeText(cp.text, W / 2, cp.y);
+    ctx.fillText(cp.text, W / 2, cp.y);
+  }
+  ctx.globalAlpha = 1;
+
+  // level transition
+  if (levelTransition > 0) {
+    ctx.fillStyle = `rgba(10,10,26,${levelTransition * 0.5})`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.font = 'bold 48px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#a5b4fc';
+    ctx.fillText(`🎯 關卡 ${level}`, W / 2, H / 2);
+    ctx.font = '20px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(isNight ? '🌙 夜晚模式' : '☀️ 白天模式', W / 2, H / 2 + 45);
+  }
+
+  ctx.restore();
+}
+
+// ==================== LOOP ====================
+function loop(time) {
+  const dt = Math.min((time - lastTime) / 1000, 0.05);
+  lastTime = time;
+
+  update(dt);
+  draw();
+
+  animFrame = requestAnimationFrame(loop);
+}
+
+// ==================== KEYBOARD SHORTCUT ====================
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (state === 'playing') { showMenu(); }
+  }
+  if (e.key === 'Enter' || e.key === ' ') {
+    if (state === 'menu') startGame();
+    else if (state === 'gameover') startGame();
+  }
+});
+</script>
+</body>
+</html>
