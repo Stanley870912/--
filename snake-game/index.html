@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🐍 超級貪吃蛇大亂鬥</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+<style>
+:root { --bg:#0a0f1a; --card:#111827; --border:#1f2937; --text:#e5e7eb; --muted:#9ca3af; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;overflow:hidden}
+
+/* Layout */
+.game-wrap{display:flex;height:100vh}
+.sidebar{width:280px;background:var(--card);border-right:1px solid var(--border);padding:16px;display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+.main-area{flex:1;display:flex;align-items:center;justify-content:center;position:relative}
+
+/* Canvas */
+canvas{border-radius:12px;box-shadow:0 0 40px rgba(6,182,212,.12)}
+
+/* Scoreboard */
+.snake-row{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:rgba(255,255,255,.03);margin-bottom:8px;transition:all .3s}
+.snake-row.dead{opacity:.35;text-decoration:line-through}
+.snake-dot{width:16px;height:16px;border-radius:4px;flex-shrink:0}
+.snake-name{font-weight:700;font-size:14px;flex:1}
+.snake-score{font-weight:800;font-size:18px}
+.snake-len{font-size:12px;color:var(--muted)}
+
+/* HUD overlay */
+.hud{position:absolute;top:16px;left:50%;transform:translateX(-50%);display:flex;gap:16px;z-index:10}
+.hud-item{background:rgba(17,24,39,.85);border:1px solid var(--border);border-radius:10px;padding:6px 16px;font-size:13px;font-weight:600;backdrop-filter:blur(8px)}
+
+/* Power-up indicator */
+.buff-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:4px}
+.buff-fill{height:100%;border-radius:2px;transition:width .3s}
+
+/* Menu overlay */
+.menu-overlay{position:absolute;inset:0;background:rgba(10,15,26,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(4px)}
+.menu-title{font-size:clamp(2rem,5vw,3.5rem);font-weight:900;background:linear-gradient(135deg,#34d399,#06b6d4,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+.btn-play{background:linear-gradient(135deg,#059669,#34d399);border:none;color:#fff;font-weight:700;font-size:1.1rem;padding:14px 48px;border-radius:12px;transition:all .2s}
+.btn-play:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(52,211,153,.3);color:#fff}
+
+/* Settings */
+.setting-label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+
+/* Toast */
+.toast-area{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);z-index:50}
+.game-toast{background:rgba(17,24,39,.9);border:1px solid var(--border);border-radius:10px;padding:8px 20px;font-size:14px;font-weight:600;white-space:nowrap;animation:toastIn .3s ease,toastOut .3s ease 1.7s forwards;backdrop-filter:blur(8px)}
+@keyframes toastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-10px)}}
+
+/* Leaderboard */
+.lb-rank{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0}
+
+/* Responsive */
+@media(max-width:768px){
+  .game-wrap{flex-direction:column}
+  .sidebar{width:100%;height:auto;max-height:160px;flex-direction:row;flex-wrap:wrap;gap:8px;overflow-x:auto}
+  .snake-row{min-width:140px;flex:1}
+}
+
+/* Kill feed */
+.kill-feed{font-size:12px;max-height:100px;overflow-y:auto;margin-top:auto}
+.kill-feed::-webkit-scrollbar{width:3px}
+.kill-feed::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.kill-msg{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+</style>
+</head>
+
+<body x-data="snakeGame()" x-init="init()" @keydown.window="handleKey($event)">
+
+<div class="game-wrap">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <h5 class="mb-3 fw-bold"><i class="bi bi-trophy me-1 text-warning"></i>排行榜</h5>
+
+    <template x-for="(s,i) in sortedSnakes" :key="s.id">
+      <div class="snake-row" :class="{'dead':!s.alive}">
+        <div class="lb-rank" :style="`background:${s.color}22;color:${s.color}`" x-text="i+1"></div>
+        <div class="snake-dot" :style="`background:${s.color}`"></div>
+        <div class="flex-grow-1">
+          <div class="snake-name" :style="`color:${s.color}`">
+            <span x-text="s.emoji + ' ' + s.name"></span>
+            <template x-if="s.isPlayer"><span class="badge bg-info ms-1" style="font-size:10px">YOU</span></template>
+          </div>
+          <div class="snake-len" x-text="'長度 '+s.body.length+' | 擊殺 '+s.kills"></div>
+          <template x-if="s.buff">
+            <div>
+              <span class="text-warning" style="font-size:11px" x-text="s.buff.icon+' '+s.buff.name"></span>
+              <div class="buff-bar"><div class="buff-fill" :style="`width:${s.buff.remaining/s.buff.duration*100}%;background:${s.buff.color}`"></div></div>
+            </div>
+          </template>
+        </div>
+        <div class="snake-score" :style="`color:${s.color}`" x-text="s.score"></div>
+      </div>
+    </template>
+
+    <!-- Kill feed -->
+    <div class="kill-feed mt-3" x-show="killFeed.length>0" x-ref="killFeed">
+      <div class="setting-label">擊殺紀錄</div>
+      <template x-for="(msg,i) in killFeed" :key="i">
+        <div class="kill-msg text-muted" x-html="msg"></div>
+      </template>
+    </div>
+
+    <!-- Controls hint -->
+    <div class="mt-auto pt-3 border-top" style="border-color:var(--border)!important">
+      <div class="setting-label mb-2">操作說明</div>
+      <div class="small text-muted">
+        <div>⬆⬇⬅➡ / WASD — 移動</div>
+        <div>空白鍵 — 加速衝刺</div>
+        <div>P — 暫停</div>
+        <div>R — 重新開始</div>
+      </div>
+      <a href="../index.html" class="btn btn-sm btn-outline-secondary w-100 mt-3"><i class="bi bi-house me-1"></i>返回大廳</a>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main-area">
+    <!-- HUD -->
+    <div class="hud" x-show="state==='playing'||state==='paused'">
+      <div class="hud-item">⏱ <span x-text="formatTime(elapsed)"></span></div>
+      <div class="hud-item">🍎 食物 <span x-text="foods.length"></span></div>
+      <div class="hud-item" x-show="state==='paused'" class="text-warning">⏸ 暫停中</div>
+    </div>
+
+    <!-- Canvas -->
+    <canvas id="gameCanvas" :width="canvasW" :height="canvasH"></canvas>
+
+    <!-- Toast -->
+    <div class="toast-area">
+      <template x-for="(t,i) in toasts" :key="t.id">
+        <div class="game-toast mb-2" x-text="t.text"></div>
+      </template>
+    </div>
+
+    <!-- MENU -->
+    <template x-if="state==='menu'">
+    <div class="menu-overlay">
+      <div class="mb-2" style="font-size:80px">🐍</div>
+      <h1 class="menu-title mb-2">超級貪吃蛇大亂鬥</h1>
+      <p class="text-muted mb-5">與 AI 蛇同場競技，吃食物、搶道具、擊殺對手！</p>
+
+      <div class="card-dark p-4 mb-4" style="background:#111827;border:1px solid #1f2937;border-radius:14px;max-width:400px;width:90%">
+        <div class="mb-3">
+          <div class="setting-label">AI 對手數量</div>
+          <div class="d-flex gap-2">
+            <template x-for="n in [1,2,3,4,5]" :key="n">
+              <button class="btn btn-sm flex-fill" :class="aiCount===n?'btn-info':'btn-outline-secondary'" @click="aiCount=n" x-text="n"></button>
+            </template>
+          </div>
+        </div>
+        <div class="mb-3">
+          <div class="setting-label">AI 難度</div>
+          <div class="d-flex gap-2">
+            <template x-for="d in [{id:'easy',label:'🐣 簡單'},{id:'normal',label:'🐍 普通'},{id:'hard',label:'🔥 困難'}]" :key="d.id">
+              <button class="btn btn-sm flex-fill" :class="aiDifficulty===d.id?'btn-warning':'btn-outline-secondary'" @click="aiDifficulty=d.id" x-text="d.label"></button>
+            </template>
+          </div>
+        </div>
+        <div class="mb-3">
+          <div class="setting-label">地圖大小</div>
+          <div class="d-flex gap-2">
+            <template x-for="s in [{id:'small',label:'小',v:25},{id:'medium',label:'中',v:35},{id:'large',label:'大',v:45}]" :key="s.id">
+              <button class="btn btn-sm flex-fill" :class="mapSize===s.id?'btn-info':'btn-outline-secondary'" @click="mapSize=s.id;gridSize=s.v" x-text="s.label"></button>
+            </template>
+          </div>
+        </div>
+        <div>
+          <div class="setting-label">遊戲速度</div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="small text-muted">慢</span>
+            <input type="range" class="form-range flex-grow-1" min="60" max="160" step="10" x-model.number="baseSpeed">
+            <span class="small text-muted">快</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-play" @click="startGame()">
+        <i class="bi bi-play-fill me-2"></i>開始遊戲
+      </button>
+      <a href="../index.html" class="btn btn-sm btn-outline-secondary mt-3"><i class="bi bi-house me-1"></i>返回大廳</a>
+    </div>
+    </template>
+
+    <!-- GAME OVER -->
+    <template x-if="state==='gameover'">
+    <div class="menu-overlay">
+      <div class="mb-3" style="font-size:64px" x-text="playerSnake?.alive ? '🏆' : '💀'"></div>
+      <h2 class="mb-1" :class="playerSnake?.alive?'text-warning':'text-danger'" x-text="playerSnake?.alive ? '你存活到了最後！' : '你被淘汰了！'"></h2>
+      <p class="text-muted mb-4">存活時間 <span x-text="formatTime(elapsed)"></span></p>
+
+      <!-- Final Leaderboard -->
+      <div class="card-dark p-4 mb-4" style="background:#111827;border:1px solid #1f2937;border-radius:14px;max-width:400px;width:90%">
+        <h6 class="text-warning mb-3"><i class="bi bi-trophy me-1"></i>最終排名</h6>
+        <template x-for="(s,i) in finalRanking" :key="s.id">
+          <div class="d-flex align-items-center gap-2 py-2" :style="s.isPlayer?'background:rgba(6,182,212,.08);border-radius:8px;padding:8px 12px!important':''">
+            <div class="lb-rank" :style="`background:${s.color}22;color:${s.color}`" x-text="i+1"></div>
+            <span x-text="s.emoji" style="font-size:20px"></span>
+            <span class="fw-bold flex-grow-1" :style="`color:${s.color}`" x-text="s.name"></span>
+            <span class="fw-bold" x-text="s.score"></span>
+          </div>
+        </template>
+      </div>
+
+      <div class="d-flex gap-3">
+        <button class="btn-play" @click="startGame()"><i class="bi bi-arrow-counterclockwise me-1"></i>再來一局</button>
+        <button class="btn btn-outline-secondary px-4 py-3" style="border-radius:12px" @click="state='menu'"><i class="bi bi-gear me-1"></i>設定</button>
+      </div>
+    </div>
+    </template>
+  </div>
+</div>
+
+<script>
+function snakeGame() {
+  const CELL = 18;
+  const AI_NAMES = [
+    {name:'暴衝蟒蛇',emoji:'🔴',color:'#ef4444',personality:'aggressive'},
+    {name:'幽靈眼鏡蛇',emoji:'👻',color:'#a855f7',personality:'sneaky'},
+    {name:'貪吃巨蟒',emoji:'🟡',color:'#eab308',personality:'greedy'},
+    {name:'毒牙蝮蛇',emoji:'🟠',color:'#f97316',personality:'hunter'},
+    {name:'冰霜白蛇',emoji:'🧊',color:'#38bdf8',personality:'cautious'},
+  ];
+
+  const POWERUPS = [
+    {type:'speed',  name:'加速',  icon:'⚡',color:'#fbbf24',duration:80,  desc:'移動速度+50%'},
+    {type:'shield', name:'護盾',  icon:'🛡️',color:'#60a5fa',duration:100, desc:'免疫一次碰撞'},
+    {type:'magnet', name:'磁鐵',  icon:'🧲',color:'#f472b6',duration:120, desc:'自動吸引附近食物'},
+    {type:'ghost',  name:'穿牆',  icon:'👻',color:'#c084fc',duration:80,  desc:'可以穿過牆壁'},
+    {type:'double', name:'雙倍分',icon:'✨',color:'#34d399',duration:100, desc:'分數獲取 x2'},
+    {type:'freeze', name:'冰凍',  icon:'❄️',color:'#67e8f9',duration:60,  desc:'所有敵人減速'},
+  ];
+
+  return {
+    state: 'menu',
+    aiCount: 3,
+    aiDifficulty: 'normal',
+    mapSize: 'medium',
+    gridSize: 35,
+    baseSpeed: 100,
+    canvasW: 0, canvasH: 0,
+    ctx: null,
+    snakes: [],
+    foods: [],
+    powerups: [],
+    walls: [],
+    toasts: [],
+    toastId: 0,
+    killFeed: [],
+    elapsed: 0,
+    tickTimer: null,
+    frameReq: null,
+    tickCount: 0,
+    playerBoosting: false,
+
+    get sortedSnakes() { return [...this.snakes].sort((a,b) => b.score - a.score); },
+    get playerSnake() { return this.snakes.find(s => s.isPlayer); },
+    get finalRanking() { return [...this.snakes].sort((a,b) => b.score - a.score); },
+
+    init() {
+      this.$nextTick(() => this.resizeCanvas());
+      window.addEventListener('resize', () => { if(this.state !== 'menu') this.resizeCanvas(); });
+    },
+
+    resizeCanvas() {
+      const area = document.querySelector('.main-area');
+      if (!area) return;
+      const w = Math.min(area.clientWidth - 40, this.gridSize * CELL);
+      const h = Math.min(area.clientHeight - 80, this.gridSize * CELL);
+      const s = Math.min(w, h);
+      this.canvasW = Math.floor(s / CELL) * CELL;
+      this.canvasH = this.canvasW;
+      this.gridSize = this.canvasW / CELL;
+    },
+
+    startGame() {
+      this.resizeCanvas();
+      this.state = 'playing';
+      this.elapsed = 0;
+      this.tickCount = 0;
+      this.killFeed = [];
+      this.toasts = [];
+      this.foods = [];
+      this.powerups = [];
+      this.snakes = [];
+      this.playerBoosting = false;
+
+      const g = this.gridSize;
+      const ctx = document.getElementById('gameCanvas').getContext('2d');
+      this.ctx = ctx;
+
+      // Player
+      const px = Math.floor(g / 2), py = Math.floor(g / 2);
+      this.snakes.push(this.createSnake('player', '你', '🟢', '#34d399', px, py, true, 'none'));
+
+      // AI
+      const corners = [
+        [3, 3], [g-4, 3], [3, g-4], [g-4, g-4], [Math.floor(g/2), 3]
+      ];
+      for (let i = 0; i < this.aiCount; i++) {
+        const ai = AI_NAMES[i];
+        const [sx, sy] = corners[i];
+        this.snakes.push(this.createSnake('ai_'+i, ai.name, ai.emoji, ai.color, sx, sy, false, ai.personality));
+      }
+
+      // Spawn food
+      for (let i = 0; i < 8 + this.aiCount * 2; i++) this.spawnFood();
+      for (let i = 0; i < 2; i++) this.spawnPowerup();
+
+      this.showToast('🐍 遊戲開始！');
+      this.gameLoop();
+    },
+
+    createSnake(id, name, emoji, color, x, y, isPlayer, personality) {
+      const dirs = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+      const dir = dirs[Math.floor(Math.random()*dirs.length)];
+      const body = [];
+      for (let i = 0; i < 4; i++) body.push({x: x - dir.x*i, y: y - dir.y*i});
+      return {
+        id, name, emoji, color, isPlayer, personality,
+        body, dir, nextDir: {...dir},
+        alive: true, score: 0, kills: 0,
+        buff: null, shieldHit: false,
+        aiTarget: null, aiTimer: 0,
+        deathTime: 0, respawnTimer: 0
+      };
+    },
+
+    spawnFood() {
+      const g = this.gridSize;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const x = Math.floor(Math.random()*g), y = Math.floor(Math.random()*g);
+        if (this.isCellFree(x, y)) {
+          const special = Math.random() < 0.15;
+          this.foods.push({
+            x, y,
+            value: special ? 3 : 1,
+            color: special ? '#fbbf24' : '#ef4444',
+            size: special ? 0.7 : 0.5,
+            glow: special
+          });
+          return;
+        }
+      }
+    },
+
+    spawnPowerup() {
+      const g = this.gridSize;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const x = Math.floor(Math.random()*g), y = Math.floor(Math.random()*g);
+        if (this.isCellFree(x, y)) {
+          const pu = POWERUPS[Math.floor(Math.random()*POWERUPS.length)];
+          this.powerups.push({x, y, ...pu, pulse: 0});
+          return;
+        }
+      }
+    },
+
+    isCellFree(x, y) {
+      for (const s of this.snakes) { if (s.alive && s.body.some(b => b.x===x && b.y===y)) return false; }
+      if (this.foods.some(f => f.x===x && f.y===y)) return false;
+      if (this.powerups.some(p => p.x===x && p.y===y)) return false;
+      return true;
+    },
+
+    gameLoop() {
+      if (this.tickTimer) clearInterval(this.tickTimer);
+      if (this.frameReq) cancelAnimationFrame(this.frameReq);
+
+      this.tickTimer = setInterval(() => {
+        if (this.state !== 'playing') return;
+        this.tick();
+      }, Math.round(1000 / (this.baseSpeed / 10)));
+
+      const render = () => {
+        this.render();
+        this.frameReq = requestAnimationFrame(render);
+      };
+      render();
+    },
+
+    tick() {
+      this.tickCount++;
+      this.elapsed += Math.round(1000 / (this.baseSpeed / 10));
+
+      const g = this.gridSize;
+
+      // AI decision
+      for (const s of this.snakes) {
+        if (!s.alive || s.isPlayer) continue;
+        this.aiDecide(s);
+      }
+
+      // Move snakes
+      for (const s of this.snakes) {
+        if (!s.alive) continue;
+
+        // Apply direction
+        s.dir = {...s.nextDir};
+
+        // Speed boost for player
+        const boosted = s.isPlayer && this.playerBoosting;
+        const frozen = !s.isPlayer && this.snakes.some(o => o.alive && o.isPlayer && o.buff?.type === 'freeze');
+
+        if (frozen && this.tickCount % 2 === 0) continue; // Frozen snakes move half speed
+        if (boosted && this.tickCount % 2 === 0) {
+          // Extra move for boost
+          this.moveSnake(s, g);
+        }
+        if (s.buff?.type === 'speed' && this.tickCount % 3 === 0) {
+          this.moveSnake(s, g);
+        }
+
+        this.moveSnake(s, g);
+      }
+
+      // Food spawn
+      if (this.tickCount % 20 === 0 && this.foods.length < 6 + this.aiCount * 2) this.spawnFood();
+      if (this.tickCount % 80 === 0 && this.powerups.length < 3) this.spawnPowerup();
+
+      // Buff tick
+      for (const s of this.snakes) {
+        if (s.buff) {
+          s.buff.remaining--;
+          if (s.buff.remaining <= 0) {
+            s.buff = null;
+          }
+        }
+      }
+
+      // Magnet effect
+      for (const s of this.snakes) {
+        if (!s.alive || s.buff?.type !== 'magnet') continue;
+        const head = s.body[0];
+        for (const f of this.foods) {
+          const dx = f.x - head.x, dy = f.y - head.y;
+          const dist = Math.abs(dx) + Math.abs(dy);
+          if (dist <= 4 && dist > 0) {
+            f.x += (dx > 0 ? -1 : dx < 0 ? 1 : 0);
+            f.y += (dy > 0 ? -1 : dy < 0 ? 1 : 0);
+          }
+        }
+      }
+
+      // Check game over
+      const alive = this.snakes.filter(s => s.alive);
+      if (!this.playerSnake?.alive) {
+        setTimeout(() => { this.state = 'gameover'; clearInterval(this.tickTimer); cancelAnimationFrame(this.frameReq); }, 800);
+      } else if (alive.length <= 1 && this.snakes.length > 1) {
+        setTimeout(() => { this.state = 'gameover'; clearInterval(this.tickTimer); cancelAnimationFrame(this.frameReq); }, 800);
+      }
+    },
+
+    moveSnake(s, g) {
+      const head = s.body[0];
+      let nx = head.x + s.dir.x;
+      let ny = head.y + s.dir.y;
+
+      // Wall handling
+      const canPhase = s.buff?.type === 'ghost';
+      if (canPhase) {
+        nx = ((nx % g) + g) % g;
+        ny = ((ny % g) + g) % g;
+      } else if (nx < 0 || nx >= g || ny < 0 || ny >= g) {
+        this.killSnake(s, null);
+        return;
+      }
+
+      // Self collision
+      if (s.body.some((b, i) => i > 0 && b.x === nx && b.y === ny)) {
+        if (s.buff?.type === 'shield') { s.buff = null; s.shieldHit = true; setTimeout(()=>s.shieldHit=false, 300); return; }
+        this.killSnake(s, null);
+        return;
+      }
+
+      // Other snake collision
+      for (const other of this.snakes) {
+        if (other === s || !other.alive) continue;
+        // Head-on collision
+        if (other.body[0].x === nx && other.body[0].y === ny) {
+          if (s.body.length > other.body.length) {
+            this.killSnake(other, s);
+          } else if (other.body.length > s.body.length) {
+            this.killSnake(s, other);
+          } else {
+            // Both die on equal length
+            if (s.buff?.type === 'shield') { s.buff = null; return; }
+            this.killSnake(s, other);
+            this.killSnake(other, s);
+          }
+          return;
+        }
+        // Body collision
+        if (other.body.some((b, i) => i > 0 && b.x === nx && b.y === ny)) {
+          if (s.buff?.type === 'shield') { s.buff = null; s.shieldHit = true; setTimeout(()=>s.shieldHit=false, 300); return; }
+          this.killSnake(s, other);
+          return;
+        }
+      }
+
+      // Move
+      s.body.unshift({x: nx, y: ny});
+
+      // Eat food
+      const fi = this.foods.findIndex(f => f.x === nx && f.y === ny);
+      if (fi >= 0) {
+        const food = this.foods[fi];
+        const mult = s.buff?.type === 'double' ? 2 : 1;
+        s.score += food.value * 10 * mult;
+        this.foods.splice(fi, 1);
+        // Grow extra for special food
+        if (food.value > 1) { s.body.push({...s.body[s.body.length-1]}); }
+      } else {
+        s.body.pop();
+      }
+
+      // Eat powerup
+      const pi = this.powerups.findIndex(p => p.x === nx && p.y === ny);
+      if (pi >= 0) {
+        const pu = this.powerups[pi];
+        s.buff = {type:pu.type, name:pu.name, icon:pu.icon, color:pu.color, duration:pu.duration, remaining:pu.duration};
+        s.score += 20;
+        this.powerups.splice(pi, 1);
+        const label = s.isPlayer ? '你' : s.name;
+        this.showToast(`${s.emoji} ${label} 獲得 ${pu.icon} ${pu.name}！`);
+      }
+    },
+
+    killSnake(victim, killer) {
+      if (!victim.alive) return;
+      victim.alive = false;
+      victim.deathTime = this.tickCount;
+
+      // Drop food from body
+      for (let i = 0; i < victim.body.length; i += 2) {
+        const b = victim.body[i];
+        if (b.x >= 0 && b.x < this.gridSize && b.y >= 0 && b.y < this.gridSize) {
+          this.foods.push({x:b.x, y:b.y, value:1, color:'#ef4444', size:0.4, glow:false});
+        }
+      }
+
+      if (killer) {
+        killer.kills++;
+        killer.score += 50 + victim.body.length * 5;
+        const kn = killer.isPlayer ? '你' : killer.name;
+        const vn = victim.isPlayer ? '你' : victim.name;
+        this.killFeed.unshift(`<span style="color:${killer.color}">${killer.emoji}${kn}</span> 擊殺了 <span style="color:${victim.color}">${victim.emoji}${vn}</span>`);
+        if (killer.isPlayer) this.showToast(`⚔️ 你擊殺了 ${victim.emoji}${victim.name}！+${50+victim.body.length*5}分`);
+        if (victim.isPlayer) this.showToast(`💀 你被 ${killer.emoji}${killer.name} 擊殺了！`);
+      } else {
+        const vn = victim.isPlayer ? '你' : victim.name;
+        this.killFeed.unshift(`<span style="color:${victim.color}">${victim.emoji}${vn}</span> 撞牆陣亡`);
+        if (victim.isPlayer) this.showToast('💀 你撞牆了！');
+      }
+      if (this.killFeed.length > 20) this.killFeed.length = 20;
+      this.$nextTick(() => { if(this.$refs.killFeed) this.$refs.killFeed.scrollTop = 0; });
+    },
+
+    // ── AI ──
+    aiDecide(s) {
+      s.aiTimer++;
+      const freq = this.aiDifficulty === 'easy' ? 4 : this.aiDifficulty === 'normal' ? 2 : 1;
+      if (s.aiTimer % freq !== 0) return;
+
+      const head = s.body[0];
+      const g = this.gridSize;
+
+      // Find targets
+      let target = null;
+      let minDist = Infinity;
+
+      // Personality-based targeting
+      if (s.personality === 'aggressive' || s.personality === 'hunter') {
+        // Target nearest player or smaller snake
+        for (const other of this.snakes) {
+          if (other === s || !other.alive) continue;
+          if (s.personality === 'hunter' && !other.isPlayer) continue;
+          if (other.body.length >= s.body.length && s.personality !== 'hunter') continue;
+          const d = Math.abs(other.body[0].x - head.x) + Math.abs(other.body[0].y - head.y);
+          if (d < minDist) { minDist = d; target = other.body[0]; }
+        }
+      }
+
+      if (s.personality === 'sneaky') {
+        // Move toward powerups first
+        for (const pu of this.powerups) {
+          const d = Math.abs(pu.x - head.x) + Math.abs(pu.y - head.y);
+          if (d < minDist) { minDist = d; target = pu; }
+        }
+      }
+
+      // Default: go to nearest food
+      if (!target || s.personality === 'greedy' || s.personality === 'cautious') {
+        minDist = Infinity;
+        const targets = s.personality === 'greedy'
+          ? [...this.foods].sort((a,b) => b.value - a.value)
+          : this.foods;
+        for (const f of targets) {
+          const d = Math.abs(f.x - head.x) + Math.abs(f.y - head.y);
+          if (d < minDist) { minDist = d; target = f; }
+        }
+      }
+
+      // Powerup bonus target
+      if (!target) {
+        for (const pu of this.powerups) {
+          const d = Math.abs(pu.x - head.x) + Math.abs(pu.y - head.y);
+          if (d < minDist) { minDist = d; target = pu; }
+        }
+      }
+
+      if (!target) return;
+
+      // Determine best direction
+      const dirs = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+      const opposite = {x:-s.dir.x, y:-s.dir.y};
+
+      let bestDir = null;
+      let bestScore = -Infinity;
+
+      for (const d of dirs) {
+        if (d.x === opposite.x && d.y === opposite.y) continue;
+        const nx = head.x + d.x, ny = head.y + d.y;
+
+        // Out of bounds
+        if (nx < 0 || nx >= g || ny < 0 || ny >= g) { continue; }
+
+        // Self or other collision
+        let blocked = false;
+        if (s.body.some((b,i) => i > 0 && b.x === nx && b.y === ny)) blocked = true;
+        for (const other of this.snakes) {
+          if (other === s || !other.alive) continue;
+          if (other.body.some(b => b.x === nx && b.y === ny)) blocked = true;
+        }
+        if (blocked) continue;
+
+        // Score: closeness to target
+        let score = -(Math.abs(target.x - nx) + Math.abs(target.y - ny));
+
+        // Cautious: avoid edges
+        if (s.personality === 'cautious') {
+          if (nx <= 1 || nx >= g-2 || ny <= 1 || ny >= g-2) score -= 5;
+        }
+
+        // Avoid being near other snake heads (hard mode)
+        if (this.aiDifficulty === 'hard') {
+          for (const other of this.snakes) {
+            if (other === s || !other.alive) continue;
+            const hd = Math.abs(other.body[0].x - nx) + Math.abs(other.body[0].y - ny);
+            if (hd <= 2 && other.body.length >= s.body.length) score -= 8;
+          }
+        }
+
+        // Look-ahead: is the next-next cell also safe?
+        const nnx = nx + d.x, nny = ny + d.y;
+        if (nnx < 0 || nnx >= g || nny < 0 || nny >= g) score -= 3;
+
+        if (score > bestScore) { bestScore = score; bestDir = d; }
+      }
+
+      if (bestDir) s.nextDir = bestDir;
+
+      // Randomness for easy mode
+      if (this.aiDifficulty === 'easy' && Math.random() < 0.1) {
+        const safe = dirs.filter(d => {
+          if (d.x===opposite.x&&d.y===opposite.y) return false;
+          const nx=head.x+d.x,ny=head.y+d.y;
+          if(nx<0||nx>=g||ny<0||ny>=g) return false;
+          return !s.body.some((b,i)=>i>0&&b.x===nx&&b.y===ny);
+        });
+        if (safe.length) s.nextDir = safe[Math.floor(Math.random()*safe.length)];
+      }
+    },
+
+    // ── RENDER ──
+    render() {
+      const ctx = this.ctx;
+      if (!ctx) return;
+      const g = this.gridSize;
+      const w = this.canvasW, h = this.canvasH;
+
+      // BG
+      ctx.fillStyle = '#0d1117';
+      ctx.fillRect(0, 0, w, h);
+
+      // Grid
+      ctx.strokeStyle = 'rgba(255,255,255,.03)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= g; i++) {
+        ctx.beginPath(); ctx.moveTo(i*CELL, 0); ctx.lineTo(i*CELL, h); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i*CELL); ctx.lineTo(w, i*CELL); ctx.stroke();
+      }
+
+      // Border
+      ctx.strokeStyle = 'rgba(255,255,255,.12)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(0, 0, w, h);
+
+      // Foods
+      for (const f of this.foods) {
+        const cx = f.x * CELL + CELL/2, cy = f.y * CELL + CELL/2;
+        if (f.glow) {
+          ctx.shadowColor = f.color;
+          ctx.shadowBlur = 10;
+        }
+        ctx.fillStyle = f.color;
+        ctx.beginPath();
+        ctx.arc(cx, cy, CELL * f.size, 0, Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      // Powerups
+      const pulse = Math.sin(Date.now() / 200) * 0.15 + 0.85;
+      for (const p of this.powerups) {
+        const cx = p.x * CELL + CELL/2, cy = p.y * CELL + CELL/2;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = p.color + '44';
+        ctx.beginPath();
+        ctx.arc(cx, cy, CELL * 0.7 * pulse, 0, Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.font = `${CELL * 0.7}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(p.icon, cx, cy);
+      }
+
+      // Snakes
+      for (const s of this.snakes) {
+        if (!s.alive) continue;
+
+        // Buff aura
+        if (s.buff) {
+          const head = s.body[0];
+          ctx.shadowColor = s.buff.color;
+          ctx.shadowBlur = 8;
+          ctx.strokeStyle = s.buff.color + '66';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(head.x*CELL+1, head.y*CELL+1, CELL-2, CELL-2);
+          ctx.shadowBlur = 0;
+        }
+
+        // Shield effect
+        if (s.buff?.type === 'shield') {
+          const head = s.body[0];
+          ctx.strokeStyle = '#60a5fa88';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(head.x*CELL+CELL/2, head.y*CELL+CELL/2, CELL*0.8, 0, Math.PI*2);
+          ctx.stroke();
+        }
+
+        // Body
+        for (let i = s.body.length - 1; i >= 0; i--) {
+          const b = s.body[i];
+          const t = i / s.body.length;
+          const alpha = 1 - t * 0.5;
+          const r = CELL/2 - 1 - t*2;
+
+          ctx.fillStyle = s.color + Math.round(alpha*255).toString(16).padStart(2,'0');
+          const radius = i === 0 ? 5 : 3;
+          this.roundRect(ctx, b.x*CELL+1, b.y*CELL+1, CELL-2, CELL-2, radius);
+          ctx.fill();
+        }
+
+        // Head face
+        const head = s.body[0];
+        ctx.font = `${CELL*0.65}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(s.emoji, head.x*CELL+CELL/2, head.y*CELL+CELL/2);
+
+        // Direction indicator (eyes)
+        if (s.isPlayer) {
+          const ex = head.x*CELL+CELL/2+s.dir.x*4;
+          const ey = head.y*CELL+CELL/2+s.dir.y*4;
+          ctx.fillStyle = '#fff';
+          ctx.beginPath();
+          ctx.arc(ex-2, ey-2, 2, 0, Math.PI*2);
+          ctx.arc(ex+2, ey+2, 2, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+
+      // Death particles
+      for (const s of this.snakes) {
+        if (s.alive || !s.deathTime) continue;
+        const age = this.tickCount - s.deathTime;
+        if (age > 15) continue;
+        const alpha = 1 - age/15;
+        ctx.globalAlpha = alpha;
+        for (const b of s.body) {
+          const spread = age * 2;
+          const ox = (Math.random()-0.5)*spread*CELL*0.3;
+          const oy = (Math.random()-0.5)*spread*CELL*0.3;
+          ctx.fillStyle = s.color;
+          ctx.fillRect(b.x*CELL+CELL/2+ox-2, b.y*CELL+CELL/2+oy-2, 4, 4);
+        }
+        ctx.globalAlpha = 1;
+      }
+    },
+
+    roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x+r, y);
+      ctx.arcTo(x+w, y, x+w, y+h, r);
+      ctx.arcTo(x+w, y+h, x, y+h, r);
+      ctx.arcTo(x, y+h, x, y, r);
+      ctx.arcTo(x, y, x+w, y, r);
+      ctx.closePath();
+    },
+
+    // ── INPUT ──
+    handleKey(e) {
+      if (this.state === 'menu') return;
+
+      const s = this.playerSnake;
+      if (!s || !s.alive) {
+        if (e.key === 'r' || e.key === 'R') this.startGame();
+        return;
+      }
+
+      const keyMap = {
+        'ArrowUp':   {x:0,y:-1}, 'w':{x:0,y:-1}, 'W':{x:0,y:-1},
+        'ArrowDown': {x:0,y:1},  's':{x:0,y:1},  'S':{x:0,y:1},
+        'ArrowLeft': {x:-1,y:0}, 'a':{x:-1,y:0}, 'A':{x:-1,y:0},
+        'ArrowRight':{x:1,y:0},  'd':{x:1,y:0},  'D':{x:1,y:0},
+      };
+
+      const dir = keyMap[e.key];
+      if (dir) {
+        e.preventDefault();
+        // Prevent 180 turn
+        if (dir.x !== -s.dir.x || dir.y !== -s.dir.y) {
+          s.nextDir = dir;
+        }
+        return;
+      }
+
+      if (e.key === ' ') { e.preventDefault(); this.playerBoosting = true; setTimeout(()=>this.playerBoosting=false, 150); }
+      if (e.key === 'p' || e.key === 'P') {
+        this.state = this.state === 'playing' ? 'paused' : this.state === 'paused' ? 'playing' : this.state;
+      }
+      if (e.key === 'r' || e.key === 'R') this.startGame();
+    },
+
+    // ── UTILS ──
+    formatTime(ms) {
+      const s = Math.floor(ms/1000);
+      const m = Math.floor(s/60);
+      return `${m}:${String(s%60).padStart(2,'0')}`;
+    },
+
+    showToast(text) {
+      const t = {id: ++this.toastId, text};
+      this.toasts.push(t);
+      setTimeout(() => { this.toasts = this.toasts.filter(x => x.id !== t.id); }, 2000);
+    }
+  };
+}
+</script>
+</body>
+</html>

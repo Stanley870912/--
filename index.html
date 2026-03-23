@@ -34,6 +34,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 .tag-tech { background: rgba(6,182,212,.12); color: #06b6d4; border: 1px solid rgba(6,182,212,.25); }
 .tag-mil { background: rgba(22,163,74,.15); color: #34d399; border: 1px solid rgba(22,163,74,.3); }
 .tag-sql { background: rgba(245,158,11,.12); color: #fbbf24; border: 1px solid rgba(245,158,11,.25); }
+.tag-snake { background: rgba(52,211,153,.12); color: #34d399; border: 1px solid rgba(52,211,153,.25); }
+.tag-fun { background: rgba(244,114,182,.12); color: #f472b6; border: 1px solid rgba(244,114,182,.25); }
 
 .footer { text-align: center; padding: 40px 20px; color: var(--muted); font-size: .8rem; margin-top: auto; }
 
@@ -49,10 +51,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
 </div>
 
 <div class="container" style="max-width:900px">
-  <div class="row g-4 justify-content-center pb-5">
+  <div class="row g-4 justify-content-center pb-5" style="max-width:1200px;margin:0 auto">
 
     <!-- SQL Challenge -->
-    <div class="col-md-6">
+    <div class="col-md-6 col-lg-4">
       <a href="sql-challenge/index.html" class="game-card">
         <div class="game-banner" style="background: linear-gradient(135deg, #1e1b4b, #312e81);">
           <span class="float-icon">🗄️</span>
@@ -74,7 +76,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
     </div>
 
     <!-- 雙軌進化 -->
-    <div class="col-md-6">
+    <div class="col-md-6 col-lg-4">
       <a href="rpg-game/index.html" class="game-card">
         <div class="game-banner" style="background: linear-gradient(135deg, #052e16, #14532d);">
           <span class="float-icon">🎖️</span>
@@ -90,6 +92,28 @@ body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', syste
             <i class="bi bi-controller me-1"></i>4 階段
             <span class="mx-2">·</span>
             <i class="bi bi-clock me-1"></i>約 15 分鐘
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- 貪吃蛇大亂鬥 -->
+    <div class="col-md-6 col-lg-4">
+      <a href="snake-game/index.html" class="game-card">
+        <div class="game-banner" style="background: linear-gradient(135deg, #1a2e05, #365314);">
+          <span class="float-icon">🐍</span>
+        </div>
+        <div class="game-body">
+          <div class="mb-2">
+            <span class="tag tag-snake me-1">貪吃蛇</span>
+            <span class="tag tag-fun">大亂鬥</span>
+          </div>
+          <div class="game-title">超級貪吃蛇大亂鬥</div>
+          <p class="game-desc">與多條 AI 蛇同場競技！搶食物、搶道具、互相擊殺——加速、護盾、穿牆、磁鐵等瘋狂道具等你來用！</p>
+          <div class="d-flex align-items-center text-muted small mt-2">
+            <i class="bi bi-controller me-1"></i>1~5 AI 對手
+            <span class="mx-2">·</span>
+            <i class="bi bi-clock me-1"></i>無限暢玩
           </div>
         </div>
       </a>
