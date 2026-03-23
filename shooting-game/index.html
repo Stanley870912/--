@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🚀 銀河射擊</title>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #06060f;
+  color: #e2e8f0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.btn-back {
+  position: fixed; top: 16px; left: 16px; z-index: 200;
+  background: rgba(30,30,60,.8); color: #a5b4fc;
+  border: 1px solid rgba(99,102,241,.3); border-radius: 8px;
+  padding: 8px 16px; cursor: pointer; font-size: .9rem;
+  text-decoration: none;
+}
+.btn-back:hover { background: rgba(99,102,241,.2); }
+
+#game-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+canvas {
+  display: block;
+  border-radius: 8px;
+  border: 1px solid rgba(99,102,241,.2);
+  box-shadow: 0 0 50px rgba(99,102,241,.1);
+}
+
+/* HUD overlay */
+.hud {
+  position: absolute; top: 0; left: 0; width: 100%;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px;
+  pointer-events: none; z-index: 10;
+  font-weight: 700; font-size: .95rem;
+}
+.hud-item { display: flex; align-items: center; gap: 5px; }
+.hud-item span { color: #a5b4fc; }
+
+/* overlays */
+.overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 20; pointer-events: none;
+}
+.overlay > div { pointer-events: auto; }
+
+.panel {
+  background: rgba(10,10,30,.94);
+  border: 1px solid rgba(99,102,241,.25);
+  border-radius: 16px; padding: 36px 40px;
+  text-align: center;
+  box-shadow: 0 0 60px rgba(99,102,241,.12);
+  max-width: 380px; width: 90%;
+}
+.panel h1 { font-size: 2rem; margin-bottom: 6px; }
+.panel h2 { font-size: 1.1rem; color: #a5b4fc; margin-bottom: 12px; }
+.panel p { color: #94a3b8; margin-bottom: 6px; line-height: 1.6; font-size: .9rem; }
+
+.btn {
+  display: inline-block; padding: 11px 30px; border-radius: 10px;
+  font-size: 1rem; font-weight: 700; cursor: pointer; border: none;
+  transition: all .2s; margin: 5px;
+}
+.btn-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 18px rgba(99,102,241,.4); }
+.btn-ghost { background: rgba(99,102,241,.12); color: #a5b4fc; border: 1px solid rgba(99,102,241,.25); }
+.btn-ghost:hover { background: rgba(99,102,241,.2); }
+
+.keys-row { display: flex; gap: 6px; justify-content: center; margin: 10px 0; flex-wrap: wrap; }
+.key-tag {
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 5px; padding: 3px 9px; font-size: .78rem; color: #a5b4fc;
+}
+
+.score-big { font-size: 2.6rem; font-weight: 900; color: #fbbf24; margin: 8px 0; }
+.label-sm { font-size: .8rem; color: #64748b; }
+.new-record { color: #f472b6; font-weight: 700; }
+
+/* mobile touch zones */
+.touch-zone {
+  position: fixed; bottom: 0; left: 0; width: 100%; height: 120px;
+  display: none; z-index: 30; pointer-events: auto;
+}
+.touch-btn {
+  position: absolute; bottom: 16px;
+  width: 64px; height: 64px; border-radius: 50%;
+  background: rgba(99,102,241,.2); border: 2px solid rgba(99,102,241,.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; color: #a5b4fc; user-select: none;
+  -webkit-user-select: none; touch-action: none;
+}
+.touch-btn:active { background: rgba(99,102,241,.4); }
+.tb-left { left: 20px; }
+.tb-right { left: 100px; }
+.tb-fire { right: 20px; }
+
+@media (pointer: coarse) {
+  .touch-zone { display: flex; }
+}
+</style>
+</head>
+<body>
+
+<a href="../index.html" class="btn-back">← 返回大廳</a>
+
+<div id="game-wrapper" x-data="gameUI">
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD -->
+  <div class="hud" x-show="state === 'playing'">
+    <div class="hud-item">🏆 <span x-text="score"></span></div>
+    <div class="hud-item">⭐ <span x-text="'Lv.' + level"></span></div>
+    <div class="hud-item">❤️ <span x-text="'❤️'.repeat(Math.max(0, lives))"></span></div>
+    <div class="hud-item">🔥 <span x-text="combo > 1 ? 'x' + combo : ''"></span></div>
+  </div>
+
+  <!-- menu overlay -->
+  <div class="overlay" x-show="state === 'menu'" x-transition>
+    <div class="panel">
+      <h1>🚀 銀河射擊</h1>
+      <h2>Galaxy Shooter</h2>
+      <p>消滅外星入侵者、收集能量<br>撐過越來越瘋狂的波次！</p>
+      <div class="keys-row">
+        <span class="key-tag">← → 移動</span>
+        <span class="key-tag">Space 射擊</span>
+        <span class="key-tag">Z 大招</span>
+      </div>
+      <div style="margin-top:14px">
+        <button class="btn btn-primary" @click="start()">🎮 開始遊戲</button>
+      </div>
+      <p class="label-sm" style="margin-top:10px">最高分：<span x-text="best"></span></p>
+    </div>
+  </div>
+
+  <!-- game over overlay -->
+  <div class="overlay" x-show="state === 'gameover'" x-transition>
+    <div class="panel">
+      <h1 x-text="isNewRecord ? '🎉 新紀錄！' : '💀 遊戲結束'"></h1>
+      <div class="score-big" x-text="score"></div>
+      <p>關卡等級：<span style="color:#a5b4fc;font-weight:700" x-text="'Lv.' + level"></span></p>
+      <p x-show="isNewRecord" class="new-record">🎉 刷新最高紀錄！</p>
+      <div style="margin-top:14px">
+        <button class="btn btn-primary" @click="start()">🔄 再來一次</button>
+        <button class="btn btn-ghost" @click="state = 'menu'">🏠 主選單</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- mobile touch -->
+  <div class="touch-zone" x-show="state === 'playing'">
+    <div class="touch-btn tb-left"
+         @touchstart.prevent="touchInput.left = true"
+         @touchend.prevent="touchInput.left = false"
+         @touchcancel="touchInput.left = false">◀</div>
+    <div class="touch-btn tb-right"
+         @touchstart.prevent="touchInput.right = true"
+         @touchend.prevent="touchInput.right = false"
+         @touchcancel="touchInput.right = false">▶</div>
+    <div class="touch-btn tb-fire"
+         @touchstart.prevent="touchInput.fire = true"
+         @touchend.prevent="touchInput.fire = false"
+         @touchcancel="touchInput.fire = false">🔥</div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
