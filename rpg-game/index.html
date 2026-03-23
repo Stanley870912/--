@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>雙軌進化：1825天的決策</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0a0f1a; --card: #111827; --border: #1f2937;
+  --gold: #f59e0b; --military: #16a34a; --civilian: #6366f1;
+  --accent: #06b6d4; --danger: #ef4444; --text: #e5e7eb; --muted: #9ca3af;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; overflow-x: hidden; }
+
+.card-dark { background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
+.card-military { border-left: 4px solid var(--military); }
+.card-civilian { border-left: 4px solid var(--civilian); }
+
+/* ── Bars ── */
+.bar { height: 24px; border-radius: 8px; background: rgba(255,255,255,.06); overflow: hidden; position: relative; }
+.bar-fill { height: 100%; border-radius: 8px; transition: width .6s ease; }
+.bar-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+.bar-savings .bar-fill { background: linear-gradient(90deg, #d97706, #fbbf24); }
+
+/* ── Title ── */
+.title-bg { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; position: relative; }
+.title-bg::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 30% 50%, rgba(22,163,74,.12) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(99,102,241,.12) 0%, transparent 60%); pointer-events: none; }
+.title-main { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 900; background: linear-gradient(135deg, var(--military), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.title-sub { font-size: clamp(1rem, 2.5vw, 1.3rem); color: var(--muted); }
+
+/* ── Path Cards ── */
+.path-icon { font-size: 56px; margin-bottom: 12px; }
+
+/* ── Gameplay ── */
+.month-counter { font-size: 14px; color: var(--accent); font-weight: 700; letter-spacing: 1px; }
+
+/* ── Tech Tree ── */
+.tech-node { background: rgba(255,255,255,.04); border: 2px solid var(--border); border-radius: 12px; padding: 14px; cursor: pointer; transition: all .25s; text-align: center; min-height: 100px; }
+.tech-node:hover:not(.locked) { border-color: var(--accent); transform: translateY(-2px); }
+.tech-node.unlocked { border-color: var(--military); background: rgba(22,163,74,.08); }
+.tech-node.civilian-unlocked { border-color: var(--civilian); background: rgba(99,102,241,.08); }
+.tech-node.locked { opacity: .35; cursor: not-allowed; }
+.tech-node.military-exclusive { box-shadow: 0 0 12px rgba(22,163,74,.15); }
+
+/* ── Comparison ── */
+.stat-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+
+/* ── Ending ── */
+.ending-badge { width: 120px; height: 120px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 56px; margin: 0 auto 20px; }
+.ending-A .ending-badge { background: linear-gradient(135deg, rgba(22,163,74,.2), rgba(34,211,153,.1)); border: 3px solid var(--military); }
+.ending-B .ending-badge { background: linear-gradient(135deg, rgba(99,102,241,.2), rgba(129,140,248,.1)); border: 3px solid var(--civilian); }
+
+/* ── Animations ── */
+.fade-in { animation: fadeIn .4s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.slide-up { animation: slideUp .5s ease; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Number ── */
+.number-highlight { font-size: 28px; font-weight: 800; }
+.number-green { color: #34d399; }
+.number-red { color: #f87171; }
+.number-gold { color: #fbbf24; }
+
+/* ── Progress dots ── */
+.phase-dot { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; border: 2px solid var(--border); background: var(--card); transition: all .3s; }
+.phase-dot.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 12px rgba(6,182,212,.3); }
+.phase-dot.done { border-color: var(--military); background: var(--military); color: #fff; }
+.phase-line { height: 2px; flex: 1; background: var(--border); margin: 0 4px; }
+.phase-line.done { background: var(--military); }
+
+/* ── Log ── */
+.log-box { max-height: 200px; overflow-y: auto; font-size: 13px; padding: 10px; background: #0a0e14; border-radius: 8px; border: 1px solid var(--border); }
+.log-box::-webkit-scrollbar { width: 5px; }
+.log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Tags ── */
+.tag { font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 600; display: inline-block; }
+.tag-mil { background: rgba(22,163,74,.15); color: #34d399; border: 1px solid rgba(22,163,74,.3); }
+.tag-civ { background: rgba(99,102,241,.15); color: #818cf8; border: 1px solid rgba(99,102,241,.3); }
+.tag-info { background: rgba(6,182,212,.12); color: var(--accent); border: 1px solid rgba(6,182,212,.25); }
+
+.btn-military { background: linear-gradient(135deg, #059669, #34d399); border: none; color: #fff; font-weight: 700; }
+.btn-military:hover { background: linear-gradient(135deg, #34d399, #059669); color: #fff; transform: translateY(-1px); box-shadow: 0 4px 15px rgba(22,163,74,.3); }
+
+canvas { max-height: 300px; }
+@media (max-width: 768px) { .path-icon { font-size: 40px; } }
+</style>
+</head>
+
+<body x-data="dualTrack()" x-init="init()">
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- TITLE SCREEN                               -->
+<!-- ═══════════════════════════════════════════ -->
+<template x-if="phase === 'title'">
+<div class="title-bg fade-in">
+  <div class="position-relative z-1 px-3" style="max-width:800px">
+    <div class="mb-3">
+      <span class="tag tag-mil me-1">國軍資電專長</span>
+      <span class="tag tag-civ">民間工程師</span>
+    </div>
+    <h1 class="title-main mb-2">雙軌進化</h1>
+    <p class="title-sub mb-1">1825 天的決策</p>
+    <p class="text-muted small mb-5">同樣的起點，不同的選擇——五年後的你，會是什麼模樣？</p>
+
+    <div class="d-flex align-items-center justify-content-center mb-5" style="max-width:400px;margin:0 auto">
+      <div class="phase-dot active">1</div>
+      <div class="phase-line"></div>
+      <div class="phase-dot">2</div>
+      <div class="phase-line"></div>
+      <div class="phase-dot">3</div>
+      <div class="phase-line"></div>
+      <div class="phase-dot">4</div>
+    </div>
+
+    <button class="btn btn-lg btn-military px-5 py-3" @click="phase = 'setup'">
+      <i class="bi bi-rocket-takeoff me-2"></i>開始你的五年決策
+    </button>
+  </div>
+</div>
+</template>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- PHASE 1: SETUP                             -->
+<!-- ═══════════════════════════════════════════ -->
+<template x-if="phase === 'setup'">
+<div class="container py-5 fade-in" style="max-width:700px">
+  <div class="d-flex align-items-center justify-content-center mb-4">
+    <div class="phase-dot done"><i class="bi bi-check"></i></div>
+    <div class="phase-line done"></div>
+    <div class="phase-dot active">1</div>
+    <div class="phase-line"></div>
+    <div class="phase-dot">2</div>
+    <div class="phase-line"></div>
+    <div class="phase-dot">3</div>
+  </div>
+
+  <h3 class="text-center mb-1">📋 第一階段：角色設定</h3>
+  <p class="text-center text-muted mb-4">設定你的背景資料，系統將為你量身計算五年發展</p>
+
+  <div class="card-dark p-4 mb-4">
+    <div class="mb-4">
+      <label class="form-label fw-bold">👤 你的稱呼</label>
+      <input type="text" class="form-control bg-dark text-light border-secondary"
+             x-model="setup.name" placeholder="輸入你的名字" maxlength="12">
+    </div>
+
+    <div class="mb-4">
+      <label class="form-label fw-bold">🎓 學歷</label>
+      <div class="d-flex gap-2 flex-wrap">
+        <template x-for="ed in ['高中/高職','大學','碩士']" :key="ed">
+          <button class="btn btn-sm" :class="setup.education === ed ? 'btn-info' : 'btn-outline-secondary'" @click="setup.education = ed" x-text="ed"></button>
+        </template>
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <label class="form-label fw-bold">💰 期望月薪（民間工程師）</label>
+      <div class="d-flex align-items-center gap-3">
+        <input type="range" class="form-range flex-grow-1" min="35000" max="65000" step="1000" x-model.number="setup.civilianSalary">
+        <span class="badge bg-secondary fs-6" x-text="'NT$' + setup.civilianSalary.toLocaleString()"></span>
+      </div>
+      <small class="text-muted">對標業界新鮮人最低水準</small>
+    </div>
+
+    <div class="mb-4">
+      <label class="form-label fw-bold">💪 體能狀態</label>
+      <div class="d-flex gap-2 flex-wrap">
+        <template x-for="ph in [{id:'active',label:'積極運動',icon:'🏃'},{id:'normal',label:'一般',icon:'🚶'},{id:'light',label:'較少運動',icon:'🧘'}]" :key="ph.id">
+          <button class="btn btn-sm" :class="setup.physical === ph.id ? 'btn-info' : 'btn-outline-secondary'" @click="setup.physical = ph.id">
+            <span x-text="ph.icon + ' ' + ph.label"></span>
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label fw-bold">🧠 性格傾向</label>
+      <div class="d-flex gap-2 flex-wrap">
+        <template x-for="p in [{id:'stable',label:'穩健保守',icon:'🏰'},{id:'balanced',label:'平衡發展',icon:'⚖️'},{id:'aggressive',label:'積極冒險',icon:'🚀'}]" :key="p.id">
+          <button class="btn btn-sm" :class="setup.personality === p.id ? 'btn-info' : 'btn-outline-secondary'" @click="setup.personality = p.id">
+            <span x-text="p.icon + ' ' + p.label"></span>
+          </button>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-center">
+    <button class="btn btn-lg btn-military px-5" @click="beginSimulation()" :disabled="!setup.name.trim() || !setup.education || !setup.physical || !setup.personality">
+      <i class="bi bi-play-fill me-1"></i>開始五年模擬
+    </button>
+  </div>
+</div>
+</template>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- PHASE 2: DATA MAPPING                      -->
+<!-- ═══════════════════════════════════════════ -->
+<template x-if="phase === 'datamapping'">
+<div class="container py-4 fade-in" style="max-width:1000px">
+  <div class="d-flex align-items-center justify-content-center mb-4">
+    <div class="phase-dot done"><i class="bi bi-check"></i></div>
+    <div class="phase-line done"></div>
+    <div class="phase-dot done"><i class="bi bi-check"></i></div>
+    <div class="phase-line done"></div>
+    <div class="phase-dot active">2</div>
+    <div class="phase-line"></div>
+    <div class="phase-dot">3</div>
+  </div>
+
+  <h4 class="text-center mb-1">📊 第二階段：五年資料對比</h4>
+  <p class="text-center text-muted small mb-4">1825 天，三個關鍵節點，兩條截然不同的人生軌跡</p>
+
+  <!-- Year selector -->
+  <div class="d-flex justify-content-center gap-2 mb-4 flex-wrap">
+    <template x-for="y in [1,2,3,4,5]" :key="y">
+      <button class="btn btn-sm" :class="dataYear === y ? 'btn-info' : 'btn-outline-secondary'" @click="dataYear = y; updateCharts()">
+        第 <span x-text="y"></span> 年
+      </button>
+    </template>
+    <button class="btn btn-sm" :class="dataYear === 0 ? 'btn-warning' : 'btn-outline-warning'" @click="dataYear = 0; updateCharts()">五年總覽</button>
+  </div>
+
+  <!-- Dual column -->
+  <div class="row g-4 mb-4">
+    <div class="col-md-6">
+      <div class="card-dark card-military p-4 h-100">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <span style="font-size:28px">🎖️</span>
+          <div><h5 class="mb-0 text-success">國軍資電專長</h5><small class="text-muted">志願役士官/兵</small></div>
+        </div>
+        <template x-if="dataYear > 0">
+          <div>
+            <div class="stat-row"><span class="text-muted">月薪</span><strong class="text-success" x-text="'NT$' + getMilData(dataYear).salary.toLocaleString()"></strong></div>
+            <div class="stat-row"><span class="text-muted">月支出</span><strong class="text-danger" x-text="'NT$' + getMilData(dataYear).expense.toLocaleString()"></strong></div>
+            <div class="stat-row"><span class="text-muted">月存款</span><strong class="number-gold" x-text="'NT$' + getMilData(dataYear).monthlySave.toLocaleString()"></strong></div>
+            <div class="stat-row"><span class="text-muted">累計淨資產</span><strong class="number-green" x-text="'NT$' + getMilData(dataYear).totalAsset.toLocaleString()"></strong></div>
+            <div class="stat-row"><span class="text-muted">取得證照</span><span x-text="getMilData(dataYear).certs"></span></div>
+            <div class="stat-row"><span class="text-muted">住宿</span><span class="tag tag-mil">公發免費</span></div>
+            <div class="stat-row"><span class="text-muted">伙食</span><span class="tag tag-mil">公發免費</span></div>
+          </div>
+        </template>
+        <template x-if="dataYear === 0">
+          <div>
+            <div class="stat-row"><span class="text-muted">五年總收入</span><strong class="number-green" x-text="'NT$' + milTotal.income.toLocaleString()"></strong></div>
+            <div class="stat-row"><span class="text-muted">五年總支出</span><strong class="text-danger" x-text="'NT$' + milTotal.expense.toLocaleString()"></strong></div>
+            <div class="stat-row"><span class="text-muted">五年淨資產</span><strong class="number-gold fs-5" x-text="'NT$' + milTotal.asset.toLocaleString()"></strong></div>
+            <div class="stat-row"><span class="text-muted">取得證照數</span><strong x-text="milTotal.certs"></strong></div>
+          </div>
+        </template>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-dark card-civilian p-4 h-100">
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <span style="font-size:28px">💻</span>
+          <div><h5 class="mb-0" style="color:#818cf8">民間工程師</h5><small class="text-muted">資安/軟體工程師 (Junior)</small></div>
+        </div>
+        <template x-if="dataYear > 0">
+          <div>
+            <div class="stat-row"><span class="text-muted">月薪</span><strong style="color:#818cf8" x-text="'NT$' + getCivData(dataYear).salary.toLocaleString()"></strong></div>
+            <div class="stat-row"><span class="text-muted">月支出</span><strong class="text-danger" x-text="'NT$' + getCivData(dataYear).expense.toLocaleString()"></strong></div>
+            <div class="stat-row"><span class="text-muted">月存款</span><strong class="number-gold" x-text="'NT$' + getCivData(dataYear).monthlySave.toLocaleString()"></strong></div>
+            <div class="stat-row"><span class="text-muted">累計淨資產</span><strong :class="getCivData(dataYear).totalAsset >= 0 ? 'number-green' : 'number-red'" x-text="'NT$' + getCivData(dataYear).totalAsset.toLocaleString()"></strong></div>
+            <div class="stat-row"><span class="text-muted">取得證照</span><span x-text="getCivData(dataYear).certs"></span></div>
+            <div class="stat-row"><span class="text-muted">住宿</span><span class="text-danger">租屋 NT$<span x-text="getCivData(dataYear).rent.toLocaleString()"></span>/月</span></div>
+            <div class="stat-row"><span class="text-muted">伙食</span><span class="text-danger">自理 ~NT$8,000/月</span></div>
+          </div>
+        </template>
+        <template x-if="dataYear === 0">
+          <div>
+            <div class="stat-row"><span class="text-muted">五年總收入</span><strong class="number-green" x-text="'NT$' + civTotal.income.toLocaleString()"></strong></div>
+            <div class="stat-row"><span class="text-muted">五年總支出</span><strong class="text-danger" x-text="'NT$' + civTotal.expense.toLocaleString()"></strong></div>
+            <div class="stat-row"><span class="text-muted">五年淨資產</span><strong class="number-gold fs-5" x-text="'NT$' + civTotal.asset.toLocaleString()"></strong></div>
+            <div class="stat-row"><span class="text-muted">取得證照數</span><strong x-text="civTotal.certs"></strong></div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart -->
+  <div class="card-dark p-4 mb-4">
+    <h6 class="text-muted mb-3"><i class="bi bi-graph-up-arrow me-1"></i>淨資產走勢對比</h6>
+    <canvas id="assetChart"></canvas>
+  </div>
+
+  <!-- Hidden cost -->
+  <div class="card-dark p-4 mb-4">
+    <h6 class="text-warning mb-3"><i class="bi bi-exclamation-triangle me-1"></i>隱形成本比較</h6>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <h6 class="text-success"><i class="bi bi-shield-check me-1"></i>國軍 — 幾乎零隱形成本</h6>
+        <ul class="small text-muted list-unstyled">
+          <li>✅ 營舍免費（含水電）</li><li>✅ 三餐公發伙食</li><li>✅ 服裝公發</li>
+          <li>✅ 國軍醫院就醫優惠</li><li>✅ 勞保/健保/退撫公提</li><li>✅ 在職進修補助</li>
+        </ul>
+      </div>
+      <div class="col-md-6">
+        <h6 style="color:#818cf8"><i class="bi bi-cash-stack me-1"></i>民間 — 高隱形成本</h6>
+        <ul class="small text-muted list-unstyled">
+          <li>❌ 租屋（含水電）~NT$10,000~15,000/月</li><li>❌ 伙食（外食）~NT$8,000~12,000/月</li>
+          <li>❌ 交通費 ~NT$2,000~3,000/月</li><li>❌ 勞健保自負額</li>
+          <li>❌ 進修證照費自付</li><li>❌ 面對裁員/轉職風險</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-center">
+    <button class="btn btn-lg btn-military px-5" @click="startGameplay()">
+      <i class="bi bi-controller me-1"></i>進入互動體驗
+    </button>
+  </div>
+</div>
+</template>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- PHASE 3: GAMEPLAY                          -->
+<!-- ═══════════════════════════════════════════ -->
+<template x-if="phase === 'gameplay'">
+<div class="container py-4 fade-in" style="max-width:1100px">
+  <div class="d-flex align-items-center justify-content-center mb-3">
+    <div class="phase-dot done"><i class="bi bi-check"></i></div>
+    <div class="phase-line done"></div>
+    <div class="phase-dot done"><i class="bi bi-check"></i></div>
+    <div class="phase-line done"></div>
+    <div class="phase-dot active">3</div>
+    <div class="phase-line"></div>
+    <div class="phase-dot">4</div>
+  </div>
+
+  <h4 class="text-center mb-1">🎮 第三階段：互動體驗</h4>
+
+  <!-- Tabs -->
+  <div class="d-flex justify-content-center gap-2 mb-4 flex-wrap">
+    <button class="btn btn-sm" :class="gameTab === 'survival' ? 'btn-info' : 'btn-outline-secondary'" @click="gameTab = 'survival'">💰 生存存錢挑戰</button>
+    <button class="btn btn-sm" :class="gameTab === 'techtree' ? 'btn-info' : 'btn-outline-secondary'" @click="gameTab = 'techtree'">🔧 技能樹</button>
+    <button class="btn btn-sm" :class="gameTab === 'timeline' ? 'btn-info' : 'btn-outline-secondary'" @click="gameTab = 'timeline'; $nextTick(() => renderResumeChart())">📈 翻轉時刻</button>
+  </div>
+
+  <!-- ─── SURVIVAL ─── -->
+  <template x-if="gameTab === 'survival'">
+  <div class="fade-in">
+    <p class="text-center text-muted small mb-4">點擊「發薪日」逐月推進，觀察兩條路線的存款差距！</p>
+    <div class="row g-4">
+      <!-- Military -->
+      <div class="col-md-6">
+        <div class="card-dark card-military p-4">
+          <h5 class="text-success mb-3">🎖️ 國軍資電士</h5>
+          <div class="month-counter mb-2">第 <span x-text="survivalMonth"></span> 月 / 60 月</div>
+          <div class="mb-2"><small class="text-muted">累計存款</small></div>
+          <div class="number-highlight number-gold mb-2" x-text="'NT$' + milSurvival.savings.toLocaleString()"></div>
+          <div class="bar bar-savings mb-3">
+            <div class="bar-fill" :style="`width:${Math.min(100, milSurvival.savings/2000000*100)}%`"></div>
+            <div class="bar-text" x-text="Math.round(milSurvival.savings/2000000*100)+'%（200萬目標）'"></div>
+          </div>
+          <div class="log-box" x-ref="milLog">
+            <template x-for="(l,i) in milSurvival.log" :key="i">
+              <div :class="l.type==='income'?'text-success':l.type==='expense'?'text-danger':'text-info'" class="small py-1" x-text="l.text"></div>
+            </template>
+          </div>
+        </div>
+      </div>
+      <!-- Civilian -->
+      <div class="col-md-6">
+        <div class="card-dark card-civilian p-4">
+          <h5 style="color:#818cf8" class="mb-3">💻 民間工程師</h5>
+          <div class="month-counter mb-2">第 <span x-text="survivalMonth"></span> 月 / 60 月</div>
+          <div class="mb-2"><small class="text-muted">累計存款</small></div>
+          <div class="number-highlight mb-2" :class="civSurvival.savings>=0?'number-gold':'number-red'" x-text="'NT$' + civSurvival.savings.toLocaleString()"></div>
+          <div class="bar bar-savings mb-3">
+            <div class="bar-fill" :style="`width:${Math.min(100, Math.max(0,civSurvival.savings)/2000000*100)}%`"></div>
+            <div class="bar-text" x-text="Math.round(Math.max(0,civSurvival.savings)/2000000*100)+'%（200萬目標）'"></div>
+          </div>
+          <div class="log-box" x-ref="civLog">
+            <template x-for="(l,i) in civSurvival.log" :key="i">
+              <div :class="l.type==='income'?'text-primary':l.type==='expense'?'text-danger':'text-info'" class="small py-1" x-text="l.text"></div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="text-center mt-4 d-flex justify-content-center gap-3 flex-wrap">
+      <button class="btn btn-military px-4" @click="survivalTick()" :disabled="survivalMonth>=60||survivalRunning">
+        <i class="bi bi-cash-coin me-1"></i><span x-text="survivalMonth>=60?'模擬完成':'▶ 發薪日（下個月）'"></span>
+      </button>
+      <button class="btn btn-outline-info px-3" @click="survivalAutoPlay()" :disabled="survivalRunning||survivalMonth>=60">
+        <i class="bi bi-fast-forward me-1"></i>快轉至結束
+      </button>
+      <button class="btn btn-outline-warning px-3" @click="phase='ending';generateEnding()" x-show="survivalMonth>=60">
+        📊 查看最終結算
+      </button>
+    </div>
+  </div>
+  </template>
+
+  <!-- ─── TECH TREE ─── -->
+  <template x-if="gameTab === 'techtree'">
+  <div class="fade-in">
+    <p class="text-center text-muted small mb-3">比較兩條路線可以學到的技能——有些領域只有軍中才碰得到！</p>
+
+    <div class="card-dark card-military p-4 mb-4">
+      <h5 class="text-success mb-3">🎖️ 國軍資電專長 — 技能樹</h5>
+      <div class="row g-3">
+        <template x-for="(tech,i) in milTechTree" :key="i">
+          <div class="col-6 col-md-4 col-lg-3">
+            <div class="tech-node" :class="{'unlocked':tech.unlocked,'locked':!tech.available,'military-exclusive':tech.exclusive}" @click="unlockTech(tech)">
+              <div style="font-size:28px" x-text="tech.icon"></div>
+              <div class="fw-bold mt-1 small" x-text="tech.name"></div>
+              <div class="text-muted" style="font-size:11px" x-text="tech.desc"></div>
+              <template x-if="tech.exclusive"><span class="tag tag-mil mt-1" style="font-size:10px">🔒 軍方限定</span></template>
+              <template x-if="tech.unlocked"><span class="tag tag-mil mt-1" style="font-size:10px">✅ 已習得</span></template>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <div class="card-dark card-civilian p-4">
+      <h5 style="color:#818cf8" class="mb-3">💻 民間工程師 — 技能樹</h5>
+      <div class="row g-3">
+        <template x-for="(tech,i) in civTechTree" :key="i">
+          <div class="col-6 col-md-4 col-lg-3">
+            <div class="tech-node" :class="{'civilian-unlocked':tech.unlocked,'locked':!tech.available}" @click="unlockTech(tech)">
+              <div style="font-size:28px" x-text="tech.icon"></div>
+              <div class="fw-bold mt-1 small" x-text="tech.name"></div>
+              <div class="text-muted" style="font-size:11px" x-text="tech.desc"></div>
+              <template x-if="tech.unlocked"><span class="tag tag-civ mt-1" style="font-size:10px">✅ 已習得</span></template>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <div class="card-dark p-4 mt-4">
+      <h6 class="text-warning mb-2"><i class="bi bi-lightbulb me-1"></i>關鍵差異</h6>
+      <p class="small text-muted mb-1">🎖️ 國軍路線可接觸<strong class="text-success">國家級資安設備、國防專用加密系統、衛星通信</strong>等民間企業碰不到的千萬等級裝備與國防領域。</p>
+      <p class="small text-muted mb-0">💻 民間路線專注在<strong style="color:#818cf8">商用技術、開源社群、快速迭代</strong>，但缺乏國防等級的實戰經驗。</p>
+    </div>
+  </div>
+  </template>
+
+  <!-- ─── TIMELINE ─── -->
+  <template x-if="gameTab === 'timeline'">
+  <div class="fade-in">
+    <p class="text-center text-muted small mb-4">五年後，資電戰士的履歷在「國防資安」領域層層上漲</p>
+
+    <div class="card-dark p-4 mb-4">
+      <h6 class="text-success mb-3">📈 五年後履歷價值對比</h6>
+      <canvas id="resumeChart"></canvas>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-md-6">
+        <div class="card-dark card-military p-4">
+          <h6 class="text-success mb-3">🎖️ 國軍資電士 — 五年後履歷亮點</h6>
+          <ul class="small list-unstyled mb-0">
+            <li class="mb-2">✅ 國家級資安防護實戰經驗</li>
+            <li class="mb-2">✅ 持有 CISSP / CEH 等國際認證（公費取得）</li>
+            <li class="mb-2">✅ 操作過價值千萬的國防級設備</li>
+            <li class="mb-2">✅ 具備機密等級安全調查資格</li>
+            <li class="mb-2">✅ 中士以上軍銜，具領導 10+ 人經驗</li>
+            <li class="mb-2">✅ 退伍後可銜接國防產業或公職資安</li>
+            <li>✅ 累計淨資產 <strong class="text-warning" x-text="'NT$' + milTotal.asset.toLocaleString()"></strong></li>
+          </ul>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card-dark card-civilian p-4">
+          <h6 style="color:#818cf8" class="mb-3">💻 民間工程師 — 五年後履歷</h6>
+          <ul class="small list-unstyled mb-0">
+            <li class="mb-2">📌 2~3 間公司的工作經歷</li>
+            <li class="mb-2">📌 熟悉 1~2 個商用框架</li>
+            <li class="mb-2">📌 可能經歷過 1 次裁員或轉職</li>
+            <li class="mb-2">📌 證照費用自行負擔</li>
+            <li class="mb-2">📌 民間資安需 Senior 等級才穩定</li>
+            <li class="mb-2">📌 薪水略高但生活成本吃掉大部分</li>
+            <li>📌 累計淨資產 <strong class="text-warning" x-text="'NT$' + civTotal.asset.toLocaleString()"></strong></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center mt-4">
+      <button class="btn btn-lg btn-military px-5" @click="phase='ending';generateEnding()">📊 查看最終結算</button>
+    </div>
+  </div>
+  </template>
+</div>
+</template>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- PHASE 4: ENDING                            -->
+<!-- ═══════════════════════════════════════════ -->
+<template x-if="phase === 'ending'">
+<div class="container py-5 fade-in" style="max-width:900px">
+  <div class="d-flex align-items-center justify-content-center mb-4">
+    <div class="phase-dot done"><i class="bi bi-check"></i></div>
+    <div class="phase-line done"></div>
+    <div class="phase-dot done"><i class="bi bi-check"></i></div>
+    <div class="phase-line done"></div>
+    <div class="phase-dot done"><i class="bi bi-check"></i></div>
+    <div class="phase-line done"></div>
+    <div class="phase-dot active">4</div>
+  </div>
+
+  <h3 class="text-center mb-1">📋 第四階段：五年職涯綜合診斷書</h3>
+  <p class="text-center text-muted small mb-5">基於你的設定，系統為你生成了兩種未來</p>
+
+  <div class="row g-4">
+    <!-- Ending A -->
+    <div class="col-md-6">
+      <div class="card-dark p-4 h-100 ending-A slide-up">
+        <div class="ending-badge">🎖️</div>
+        <h4 class="text-center text-success mb-1">結局 A：穩健增值者</h4>
+        <p class="text-center text-muted small mb-4">選擇從軍</p>
+        <div class="mb-3"><span class="tag tag-mil me-1">數位國防專家</span><span class="tag tag-info">穩定成長</span></div>
+        <div class="stat-row"><span class="text-muted">🏆 職業</span><strong>數位國防專家</strong></div>
+        <div class="stat-row"><span class="text-muted">💰 五年淨資產</span><strong class="number-gold" x-text="'NT$' + milTotal.asset.toLocaleString()"></strong></div>
+        <div class="stat-row"><span class="text-muted">📜 國際證照</span><strong x-text="milTotal.certs + ' 張（公費取得）'"></strong></div>
+        <div class="stat-row"><span class="text-muted">👥 帶領經驗</span><strong>10+ 人團隊</strong></div>
+        <div class="stat-row"><span class="text-muted">🏠 住宿成本</span><strong class="text-success">$0（公發營舍）</strong></div>
+        <div class="stat-row"><span class="text-muted">🎓 在職進修</span><strong class="text-success">公費補助</strong></div>
+        <div class="stat-row"><span class="text-muted">📈 退伍出路</span><strong>國防產業/公職資安/科技業</strong></div>
+        <div class="mt-4 p-3 rounded" style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.2)">
+          <p class="small mb-0">💬 <strong>「<span x-text="setup.name"></span>，你在 5 年內完成了資產與技術的雙重蛻變，成為國防資安領域中的資深紅人。存款突破百萬、手握國際認證，無論繼續留營或投身業界，你都站在高起點。」</strong></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ending B -->
+    <div class="col-md-6">
+      <div class="card-dark p-4 h-100 ending-B slide-up" style="animation-delay:.2s">
+        <div class="ending-badge">💻</div>
+        <h4 class="text-center mb-1" style="color:#818cf8">結局 B：自由探索者</h4>
+        <p class="text-center text-muted small mb-4">選擇業界</p>
+        <div class="mb-3"><span class="tag tag-civ me-1">職場跳槽民</span><span class="tag tag-info">高彈性</span></div>
+        <div class="stat-row"><span class="text-muted">🏆 職業</span><strong>資安/軟體工程師</strong></div>
+        <div class="stat-row"><span class="text-muted">💰 五年淨資產</span><strong :class="civTotal.asset>=0?'number-gold':'number-red'" x-text="'NT$' + civTotal.asset.toLocaleString()"></strong></div>
+        <div class="stat-row"><span class="text-muted">📜 證照</span><strong x-text="civTotal.certs + ' 張（自費）'"></strong></div>
+        <div class="stat-row"><span class="text-muted">🔄 換工作次數</span><strong>2~3 次</strong></div>
+        <div class="stat-row"><span class="text-muted">🏠 累計住宿成本</span><strong class="text-danger" x-text="'NT$' + Math.round(civTotal.expense * 0.4).toLocaleString()"></strong></div>
+        <div class="stat-row"><span class="text-muted">🎓 進修</span><strong class="text-danger">自費</strong></div>
+        <div class="stat-row"><span class="text-muted">⚠️ 風險</span><strong>裁員/無薪假可能</strong></div>
+        <div class="mt-4 p-3 rounded" style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2)">
+          <p class="small mb-0">💬 <strong>「<span x-text="setup.name"></span>，你有最高的靈活性，參與過多間公司、習慣快速變動的技術棧。但請注意——資產累積的速度是否趕得上通膨與生活開銷。」</strong></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gap highlight -->
+  <div class="card-dark p-4 mt-4 text-center">
+    <h5 class="text-warning mb-2"><i class="bi bi-graph-up-arrow me-1"></i>五年資產差距</h5>
+    <div class="number-highlight number-gold fs-2" x-text="'NT$' + (milTotal.asset - civTotal.asset).toLocaleString()"></div>
+    <p class="text-muted small mt-1 mb-3">選擇國軍資電專長，五年後可多累積以上資產</p>
+    <div class="row g-3 justify-content-center mb-4">
+      <div class="col-auto"><div class="card-dark p-3 text-center"><div class="text-muted small">相當於</div><div class="fs-5 text-warning" x-text="Math.round((milTotal.asset-civTotal.asset)/15000)+' 個月房租'"></div></div></div>
+      <div class="col-auto"><div class="card-dark p-3 text-center"><div class="text-muted small">或等於</div><div class="fs-5 text-warning" x-text="Math.round((milTotal.asset-civTotal.asset)/200)+' 碗牛肉麵'"></div></div></div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="text-center mt-5">
+    <div class="card-dark p-5 slide-up" style="border-color:var(--military)">
+      <h4 class="text-success mb-2">🇹🇼 你的未來，由你決定</h4>
+      <p class="text-muted mb-4">國軍資電專長正在招募——穩定薪資、公費培訓、國防級歷練</p>
+      <button class="btn btn-lg btn-military px-5 py-3 me-2" @click="showRecruitInfo = true">
+        <i class="bi bi-info-circle me-1"></i>了解國軍資電專長
+      </button>
+      <button class="btn btn-lg btn-outline-secondary px-4 py-3" @click="resetGame()">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>重新體驗
+      </button>
+    </div>
+  </div>
+</div>
+</template>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- Recruit Info Modal                         -->
+<!-- ═══════════════════════════════════════════ -->
+<template x-if="showRecruitInfo">
+<div class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background:rgba(0,0,0,.7);z-index:9999" @click.self="showRecruitInfo=false">
+  <div class="card-dark p-4 m-3 fade-in" style="max-width:600px;max-height:90vh;overflow-y:auto">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h4 class="mb-0 text-success"><i class="bi bi-shield-check me-2"></i>國軍資電專長招募資訊</h4>
+      <button class="btn btn-sm btn-outline-secondary" @click="showRecruitInfo=false"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="mb-3">
+      <h6 class="text-warning">💰 薪資福利</h6>
+      <ul class="small"><li>志願役二等兵起薪約 NT$38,990~41,450</li><li>下士起薪約 NT$42,345~48,545</li><li>含專業加給、主副食費、地域加給等</li><li>每年固定調薪，年終獎金 1.5 個月</li></ul>
+    </div>
+    <div class="mb-3">
+      <h6 class="text-warning">🏠 全免福利</h6>
+      <ul class="small"><li>營區住宿免費（含水電）</li><li>三餐公發伙食免費</li><li>制服裝備全額公發</li><li>國軍醫院就醫補助</li></ul>
+    </div>
+    <div class="mb-3">
+      <h6 class="text-warning">🎓 培訓發展</h6>
+      <ul class="small"><li>資安攻防、網路戰技術專業訓練</li><li>公費取得 CISSP、CEH 等國際認證</li><li>在職進修碩博士學位補助</li><li>接觸國防等級設備與系統</li></ul>
+    </div>
+    <div class="mb-3">
+      <h6 class="text-warning">🚀 退伍出路</h6>
+      <ul class="small"><li>國防產業（中科院、軍工企業）</li><li>政府資安單位（調查局、國安局外聘）</li><li>科技業資安部門（具國防經歷加分）</li><li>公職考試（退伍軍人加分優待）</li></ul>
+    </div>
+    <div class="text-center mt-3">
+      <a class="btn btn-military px-4" href="https://rdrc.mnd.gov.tw" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-box-arrow-up-right me-1"></i>前往國軍人才招募中心
+      </a>
+    </div>
+  </div>
+</div>
+</template>
+
+<script>
+function dualTrack() {
+  return {
+    phase: 'title',
+    showRecruitInfo: false,
+    dataYear: 0,
+    gameTab: 'survival',
+    survivalMonth: 0,
+    survivalRunning: false,
+    assetChart: null,
+    resumeChart: null,
+
+    setup: { name: '', education: null, civilianSalary: 45000, physical: null, personality: null },
+    milTotal: { income:0, expense:0, asset:0, certs:0 },
+    civTotal: { income:0, expense:0, asset:0, certs:0 },
+    milSurvival: { savings:0, log:[] },
+    civSurvival: { savings:0, log:[] },
+    milTechTree: [],
+    civTechTree: [],
+
+    init() { this.initTechTrees(); },
+
+    // ── Data ──
+    getMilSalary(year) {
+      const base = 41000;
+      const bonus = [0, 2000, 4500, 7000, 11000];
+      return base + (bonus[year-1]||0);
+    },
+    getMilExpense(year) { return 3000 + year * 500; },
+
+    getCivSalary(year) {
+      const base = this.setup.civilianSalary || 45000;
+      return Math.round(base * Math.pow(1.04, year-1));
+    },
+    getCivExpense(year) {
+      return (10000 + year*500) + 8000 + 2500 + 3000 + year*300;
+    },
+
+    getMilData(year) {
+      const salary = this.getMilSalary(year);
+      const expense = this.getMilExpense(year);
+      let total = 0;
+      for (let y=1; y<=year; y++) total += (this.getMilSalary(y)-this.getMilExpense(y))*12;
+      const certsArr = ['','資安基礎','資安基礎, CCNA','資安基礎, CCNA, CEH','資安基礎, CCNA, CEH, CISSP','資安基礎, CCNA, CEH, CISSP, 雲端安全'];
+      return { salary, expense, monthlySave: salary-expense, totalAsset: total, rent:0, certs: certsArr[year]||'' };
+    },
+    getCivData(year) {
+      const salary = this.getCivSalary(year);
+      const expense = this.getCivExpense(year);
+      let total = 0;
+      for (let y=1; y<=year; y++) total += (this.getCivSalary(y)-this.getCivExpense(y))*12;
+      const certsArr = ['','','基礎雲端','基礎雲端','基礎雲端, AWS SAA','基礎雲端, AWS SAA'];
+      return { salary, expense, monthlySave: salary-expense, totalAsset: total, rent: 10000+year*500, certs: certsArr[year]||'' };
+    },
+
+    computeTotals() {
+      let mi=0,me=0,ci=0,ce=0;
+      for (let y=1;y<=5;y++) { mi+=this.getMilSalary(y)*12; me+=this.getMilExpense(y)*12; ci+=this.getCivSalary(y)*12; ce+=this.getCivExpense(y)*12; }
+      mi += Math.round(this.getMilSalary(3)*1.5*5);
+      ci += Math.round(this.getCivSalary(3)*1.0*5);
+      this.milTotal = { income:mi, expense:me, asset:mi-me, certs:5 };
+      this.civTotal = { income:ci, expense:ce, asset:ci-ce, certs:2 };
+    },
+
+    updateCharts() { this.$nextTick(()=>this.renderAssetChart()); },
+
+    renderAssetChart() {
+      const c = document.getElementById('assetChart');
+      if (!c) return;
+      if (this.assetChart) this.assetChart.destroy();
+      const labels = ['起點','第1年','第2年','第3年','第4年','第5年'];
+      const md=[0], cd=[0];
+      for (let y=1;y<=5;y++) { md.push(this.getMilData(y).totalAsset); cd.push(this.getCivData(y).totalAsset); }
+      this.assetChart = new Chart(c, {
+        type:'line',
+        data:{ labels, datasets:[
+          { label:'🎖️ 國軍資電', data:md, borderColor:'#34d399', backgroundColor:'rgba(52,211,153,.1)', fill:true, tension:.3, borderWidth:3 },
+          { label:'💻 民間工程師', data:cd, borderColor:'#818cf8', backgroundColor:'rgba(129,140,248,.1)', fill:true, tension:.3, borderWidth:3 }
+        ]},
+        options:{ responsive:true,
+          plugins:{ legend:{ labels:{ color:'#9ca3af' } }, tooltip:{ callbacks:{ label: ctx=>ctx.dataset.label+': NT$'+ctx.parsed.y.toLocaleString() } } },
+          scales:{ x:{ ticks:{color:'#9ca3af'}, grid:{color:'rgba(255,255,255,.05)'} }, y:{ ticks:{color:'#9ca3af', callback:v=>'NT$'+(v/10000).toFixed(0)+'萬'}, grid:{color:'rgba(255,255,255,.05)'} } }
+        }
+      });
+    },
+
+    renderResumeChart() {
+      const c = document.getElementById('resumeChart');
+      if (!c) return;
+      if (this.resumeChart) this.resumeChart.destroy();
+      this.resumeChart = new Chart(c, {
+        type:'radar',
+        data:{ labels:['資安實戰','國防經歷','證照數量','領導經驗','薪資穩定','資產累積','技術深度','職涯安全'],
+          datasets:[
+            { label:'🎖️ 國軍資電', data:[95,100,90,85,95,90,80,95], borderColor:'#34d399', backgroundColor:'rgba(52,211,153,.15)', borderWidth:2 },
+            { label:'💻 民間工程師', data:[60,10,40,40,50,45,75,40], borderColor:'#818cf8', backgroundColor:'rgba(129,140,248,.15)', borderWidth:2 }
+          ]
+        },
+        options:{ responsive:true, plugins:{ legend:{ labels:{color:'#9ca3af'} } },
+          scales:{ r:{ angleLines:{color:'rgba(255,255,255,.08)'}, grid:{color:'rgba(255,255,255,.08)'}, pointLabels:{color:'#e5e7eb',font:{size:12}}, ticks:{display:false}, suggestedMax:100 } }
+        }
+      });
+    },
+
+    beginSimulation() { this.computeTotals(); this.phase='datamapping'; this.$nextTick(()=>this.renderAssetChart()); },
+
+    startGameplay() {
+      this.survivalMonth=0;
+      this.milSurvival={savings:0,log:[]};
+      this.civSurvival={savings:0,log:[]};
+      this.phase='gameplay';
+    },
+
+    // ── Survival ──
+    survivalTick() {
+      if (this.survivalMonth>=60) return;
+      this.survivalMonth++;
+      const m=this.survivalMonth, year=Math.ceil(m/12);
+      const ms=this.getMilSalary(year), me=this.getMilExpense(year);
+      this.milSurvival.savings += ms-me;
+      this.milSurvival.log.push({text:`💰 第${m}月 薪資 +NT$${ms.toLocaleString()}`, type:'income'});
+      this.milSurvival.log.push({text:`  支出 -NT$${me.toLocaleString()}（個人消費）`, type:'expense'});
+
+      const cs=this.getCivSalary(year), ce=this.getCivExpense(year);
+      this.civSurvival.savings += cs-ce;
+      this.civSurvival.log.push({text:`💰 第${m}月 薪資 +NT$${cs.toLocaleString()}`, type:'income'});
+      this.civSurvival.log.push({text:`  房租 -NT$${(10000+year*500).toLocaleString()} | 伙食 -NT$8,000 | 其他 -NT$${(5500+year*300).toLocaleString()}`, type:'expense'});
+
+      if (m%6===0) this.triggerEvent(m,year);
+      if (m%12===0) {
+        const mb=Math.round(ms*1.5), cb=Math.round(cs*1.0);
+        this.milSurvival.savings+=mb; this.civSurvival.savings+=cb;
+        this.milSurvival.log.push({text:`🎊 年終獎金 +NT$${mb.toLocaleString()}（1.5個月）`,type:'income'});
+        this.civSurvival.log.push({text:`🎊 年終獎金 +NT$${cb.toLocaleString()}（1個月）`,type:'income'});
+      }
+      this.$nextTick(()=>{
+        if(this.$refs.milLog) this.$refs.milLog.scrollTop=this.$refs.milLog.scrollHeight;
+        if(this.$refs.civLog) this.$refs.civLog.scrollTop=this.$refs.civLog.scrollHeight;
+      });
+    },
+
+    triggerEvent(m, year) {
+      const milE=[
+        {text:'📜 完成資安認證訓練，公費取得！',type:'income'},
+        {text:'🎖️ 晉升加薪！',type:'income'},
+        {text:'🏋️ 體能考核通過，獲得加給',type:'income'},
+        {text:'💻 參與國防資安演習，累積實戰經驗',type:'info'},
+        {text:'📚 在職進修補助核准',type:'income'},
+        {text:'🛡️ 操作千萬級國防設備，技術大幅提升',type:'info'}
+      ];
+      const civE=[
+        {text:'🏥 生病看醫生 -NT$3,000',type:'expense',cost:3000},
+        {text:'📱 手機維修 -NT$5,000',type:'expense',cost:5000},
+        {text:'🏠 房東漲租 +NT$1,000/月',type:'expense',cost:1000},
+        {text:'😰 公司裁員危機，壓力倍增',type:'info'},
+        {text:'💸 考證照費用 -NT$8,000',type:'expense',cost:8000},
+        {text:'🔄 轉職空窗期 1 個月零收入',type:'expense',cost:this.getCivSalary(year)},
+        {text:'🍜 朋友聚餐應酬 -NT$2,000',type:'expense',cost:2000},
+        {text:'💼 加班但沒有加班費...',type:'info'}
+      ];
+      const me=milE[Math.floor(Math.random()*milE.length)];
+      this.milSurvival.log.push({text:`⭐ ${me.text}`,type:me.type});
+      const ce=civE[Math.floor(Math.random()*civE.length)];
+      this.civSurvival.log.push({text:`⚡ ${ce.text}`,type:ce.type});
+      if(ce.cost) this.civSurvival.savings-=ce.cost;
+    },
+
+    async survivalAutoPlay() {
+      this.survivalRunning=true;
+      while(this.survivalMonth<60) { this.survivalTick(); await new Promise(r=>setTimeout(r,80)); }
+      this.survivalRunning=false;
+    },
+
+    // ── Tech Tree ──
+    initTechTrees() {
+      this.milTechTree = [
+        {name:'基礎資安',icon:'🔐',desc:'網路安全基礎概念',available:true,unlocked:false,exclusive:false},
+        {name:'網路架設',icon:'🌐',desc:'區域/廣域網路建置',available:true,unlocked:false,exclusive:false},
+        {name:'加密通信',icon:'📡',desc:'軍用加密通信系統',available:true,unlocked:false,exclusive:true},
+        {name:'資安攻防',icon:'⚔️',desc:'滲透測試與防禦',available:true,unlocked:false,exclusive:false},
+        {name:'國防級防火牆',icon:'🛡️',desc:'千萬等級資安設備操作',available:true,unlocked:false,exclusive:true},
+        {name:'衛星通信',icon:'🛰️',desc:'軍事衛星通信技術',available:true,unlocked:false,exclusive:true},
+        {name:'CISSP 認證',icon:'📜',desc:'國際頂級資安認證',available:true,unlocked:false,exclusive:false},
+        {name:'電子戰技術',icon:'📻',desc:'電子干擾與反制',available:true,unlocked:false,exclusive:true},
+        {name:'雲端安全',icon:'☁️',desc:'雲端架構安全防護',available:true,unlocked:false,exclusive:false},
+        {name:'國防 AI',icon:'🤖',desc:'軍事 AI 應用開發',available:true,unlocked:false,exclusive:true},
+        {name:'團隊領導',icon:'👥',desc:'帶領 10+ 人技術團隊',available:true,unlocked:false,exclusive:false},
+        {name:'紅隊演練',icon:'🎯',desc:'國家級資安攻防演習',available:true,unlocked:false,exclusive:true}
+      ];
+      this.civTechTree = [
+        {name:'基礎程設',icon:'💻',desc:'程式語言基礎',available:true,unlocked:false,exclusive:false},
+        {name:'前端開發',icon:'🎨',desc:'React/Vue 框架',available:true,unlocked:false,exclusive:false},
+        {name:'後端開發',icon:'⚙️',desc:'Node.js/Java',available:true,unlocked:false,exclusive:false},
+        {name:'資料庫',icon:'🗃️',desc:'SQL/NoSQL 操作',available:true,unlocked:false,exclusive:false},
+        {name:'基礎雲端',icon:'☁️',desc:'AWS/GCP 入門',available:true,unlocked:false,exclusive:false},
+        {name:'容器技術',icon:'🐳',desc:'Docker/K8s',available:true,unlocked:false,exclusive:false},
+        {name:'CI/CD',icon:'🔄',desc:'自動化部署流程',available:true,unlocked:false,exclusive:false},
+        {name:'開源貢獻',icon:'📦',desc:'GitHub 開源專案',available:true,unlocked:false,exclusive:false},
+        {name:'基礎資安',icon:'🔐',desc:'商用資安概念',available:true,unlocked:false,exclusive:false},
+        {name:'AWS 認證',icon:'📜',desc:'SAA 認證（自費）',available:true,unlocked:false,exclusive:false},
+        {name:'敏捷開發',icon:'🏃',desc:'Scrum/Agile 流程',available:true,unlocked:false,exclusive:false},
+        {name:'面試技巧',icon:'🤝',desc:'跳槽面試準備',available:true,unlocked:false,exclusive:false}
+      ];
+    },
+
+    unlockTech(tech) { if(tech.available && !tech.unlocked) tech.unlocked=true; },
+
+    generateEnding() { this.computeTotals(); },
+
+    resetGame() {
+      this.phase='title'; this.dataYear=0; this.gameTab='survival'; this.survivalMonth=0; this.survivalRunning=false;
+      this.setup={name:'',education:null,civilianSalary:45000,physical:null,personality:null};
+      this.milSurvival={savings:0,log:[]}; this.civSurvival={savings:0,log:[]};
+      this.initTechTrees();
+    }
+  };
+}
+</script>
+</body>
+</html>

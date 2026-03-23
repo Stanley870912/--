@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SQL Challenge — 寫出正確 SQL 就過關！</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+  <style>
+    :root {
+      --bg-dark: #1a1a2e;
+      --bg-card: #16213e;
+      --bg-editor: #0f3460;
+      --accent: #e94560;
+      --accent2: #00d2ff;
+      --success: #00e676;
+      --text: #e0e0e0;
+    }
+
+    body {
+      background: var(--bg-dark);
+      color: var(--text);
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .navbar-brand {
+      font-weight: 800;
+      letter-spacing: 2px;
+    }
+
+    .card-dark {
+      background: var(--bg-card);
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 12px;
+    }
+
+    .editor-area {
+      background: #0a0a23;
+      color: #00ff88;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 15px;
+      border: 2px solid var(--bg-editor);
+      border-radius: 8px;
+      resize: vertical;
+      min-height: 160px;
+      padding: 16px;
+      width: 100%;
+      line-height: 1.6;
+      tab-size: 2;
+    }
+
+    .editor-area:focus {
+      border-color: var(--accent2);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(0, 210, 255, .15);
+    }
+
+    .btn-run {
+      background: linear-gradient(135deg, var(--accent), #ff6b6b);
+      border: none;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    .btn-run:hover {
+      background: linear-gradient(135deg, #ff6b6b, var(--accent));
+      transform: translateY(-1px);
+      box-shadow: 0 4px 15px rgba(233, 69, 96, .4);
+    }
+
+    .btn-hint {
+      background: transparent;
+      border: 1px solid var(--accent2);
+      color: var(--accent2);
+    }
+
+    .btn-hint:hover {
+      background: var(--accent2);
+      color: #000;
+    }
+
+    .result-table {
+      font-size: 14px;
+    }
+
+    .result-table thead th {
+      background: var(--bg-editor);
+      color: var(--accent2);
+      border-color: rgba(255, 255, 255, .1);
+      position: sticky;
+      top: 0;
+    }
+
+    .result-table td {
+      color: var(--text);
+      border-color: rgba(255, 255, 255, .06);
+    }
+
+    .level-badge {
+      width: 42px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      font-weight: 700;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all .2s;
+      border: 2px solid transparent;
+    }
+
+    .level-badge.active {
+      border-color: var(--accent2);
+      box-shadow: 0 0 12px rgba(0, 210, 255, .4);
+    }
+
+    .level-badge.solved {
+      background: var(--success) !important;
+      color: #000 !important;
+    }
+
+    .level-badge:hover {
+      transform: scale(1.15);
+    }
+
+    .difficulty-easy {
+      color: #00e676;
+    }
+
+    .difficulty-medium {
+      color: #ffab00;
+    }
+
+    .difficulty-hard {
+      color: #ff5252;
+    }
+
+    .schema-block {
+      background: #0a0a23;
+      border-radius: 8px;
+      padding: 14px;
+      font-family: 'Cascadia Code', monospace;
+      font-size: 13px;
+      color: #8892b0;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    .fade-in {
+      animation: fadeIn .3s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .progress-ring {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, .08);
+      overflow: hidden;
+    }
+
+    .progress-ring-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: linear-gradient(90deg, var(--accent2), var(--success));
+      transition: width .5s ease;
+    }
+
+    .expected-table-wrapper,
+    .result-table-wrapper {
+      max-height: 260px;
+      overflow: auto;
+      border-radius: 8px;
+    }
+
+    .confetti {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    .tag {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(0, 210, 255, .12);
+      color: var(--accent2);
+      border: 1px solid rgba(0, 210, 255, .25);
+    }
+
+    .toast-pass {
+      background: linear-gradient(135deg, #00e676, #00c853) !important;
+      color: #000 !important;
+      font-weight: 700;
+    }
+
+    @media (max-width: 768px) {
+      .editor-area { min-height: 120px; font-size: 13px; }
+    }
+  </style>
+</head>
+
+<body x-data="sqlChallenge()" x-init="init()">
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-dark py-3" style="background:rgba(0,0,0,.3)">
+    <div class="container-fluid px-4">
+      <span class="navbar-brand mb-0">
+        <i class="bi bi-database-fill text-info me-2"></i>SQL Challenge
+      </span>
+      <div class="d-flex align-items-center gap-3">
+        <small class="text-muted">
+          <i class="bi bi-trophy-fill text-warning me-1"></i>
+          <span x-text="solvedCount"></span> / <span x-text="challenges.length"></span> 已通過
+        </small>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Loading -->
+  <template x-if="!dbReady">
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:80vh">
+      <div class="spinner-border text-info mb-3" role="status"></div>
+      <p class="text-muted">正在載入 SQL 引擎 (sql.js)...</p>
+    </div>
+  </template>
+
+  <!-- Main Content -->
+  <template x-if="dbReady">
+    <div class="container-fluid py-4 px-3 px-lg-5 fade-in">
+      <!-- Progress -->
+      <div class="mb-3">
+        <div class="progress-ring">
+          <div class="progress-ring-fill" :style="`width:${(solvedCount/challenges.length)*100}%`"></div>
+        </div>
+      </div>
+
+      <!-- Level Selector -->
+      <div class="d-flex flex-wrap gap-2 mb-4 align-items-center">
+        <template x-for="(ch, idx) in challenges" :key="idx">
+          <div class="level-badge"
+               :class="{
+                 'active': currentIdx === idx,
+                 'solved': solved[idx],
+                 'bg-secondary bg-opacity-25': !solved[idx]
+               }"
+               @click="selectLevel(idx)"
+               :title="ch.title">
+            <span x-text="idx + 1"></span>
+          </div>
+        </template>
+      </div>
+
+      <div class="row g-4">
+        <!-- Left: Problem Description -->
+        <div class="col-lg-5">
+          <div class="card-dark p-4 h-100">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h4 class="mb-0">
+                <span class="text-muted me-2" x-text="`#${currentIdx+1}`"></span>
+                <span x-text="current.title"></span>
+              </h4>
+              <span class="badge"
+                    :class="{
+                      'bg-success': current.difficulty === '簡單',
+                      'bg-warning text-dark': current.difficulty === '中等',
+                      'bg-danger': current.difficulty === '困難'
+                    }"
+                    x-text="current.difficulty"></span>
+            </div>
+
+            <div class="d-flex flex-wrap gap-1 mb-3">
+              <template x-for="tag in current.tags" :key="tag">
+                <span class="tag" x-text="tag"></span>
+              </template>
+            </div>
+
+            <div class="mb-3" x-html="current.description"></div>
+
+            <!-- Schema -->
+            <h6 class="text-info mt-4 mb-2"><i class="bi bi-table me-1"></i>資料表結構</h6>
+            <div class="schema-block mb-3">
+              <pre class="mb-0" style="white-space:pre-wrap" x-text="current.schema"></pre>
+            </div>
+
+            <!-- Expected Output -->
+            <h6 class="text-info mb-2"><i class="bi bi-check2-square me-1"></i>期望輸出</h6>
+            <div class="expected-table-wrapper">
+              <table class="table table-sm table-dark result-table mb-0">
+                <thead>
+                  <tr>
+                    <template x-for="col in current.expectedColumns" :key="col">
+                      <th x-text="col"></th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(row, ri) in current.expectedRows" :key="ri">
+                    <tr>
+                      <template x-for="(cell, ci) in row" :key="ci">
+                        <td x-text="cell"></td>
+                      </template>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Hint -->
+            <div class="mt-3">
+              <button class="btn btn-sm btn-hint" @click="showHint = !showHint">
+                <i class="bi bi-lightbulb me-1"></i>
+                <span x-text="showHint ? '隱藏提示' : '顯示提示'"></span>
+              </button>
+              <div x-show="showHint" x-transition class="mt-2 p-3 rounded" style="background:rgba(0,210,255,.06);border:1px solid rgba(0,210,255,.15)">
+                <small x-html="current.hint"></small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Editor & Results -->
+        <div class="col-lg-7">
+          <div class="card-dark p-4">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h5 class="mb-0"><i class="bi bi-code-slash me-2 text-info"></i>你的 SQL</h5>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary" @click="resetCode()" title="重設">
+                  <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+                <button class="btn btn-sm btn-run text-white px-4" @click="runSQL()" :disabled="running">
+                  <template x-if="running">
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                  </template>
+                  <i class="bi bi-play-fill me-1" x-show="!running"></i>
+                  <span x-text="running ? '執行中...' : '執行 (Ctrl+Enter)'"></span>
+                </button>
+              </div>
+            </div>
+
+            <textarea class="editor-area"
+                      x-model="userSQL"
+                      @keydown.ctrl.enter.prevent="runSQL()"
+                      @keydown.meta.enter.prevent="runSQL()"
+                      placeholder="在這裡輸入你的 SQL 查詢..."
+                      spellcheck="false"></textarea>
+
+            <!-- Result Area -->
+            <div class="mt-4">
+              <!-- Error -->
+              <template x-if="error">
+                <div class="alert alert-danger py-2 fade-in">
+                  <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                  <span x-text="error"></span>
+                </div>
+              </template>
+
+              <!-- Pass -->
+              <template x-if="passed">
+                <div class="alert py-2 fade-in toast-pass">
+                  <i class="bi bi-check-circle-fill me-2"></i>
+                  恭喜通過！你的 SQL 完全正確！
+                  <button class="btn btn-sm btn-dark ms-3" @click="goNext()" x-show="currentIdx < challenges.length - 1">
+                    下一題 <i class="bi bi-arrow-right"></i>
+                  </button>
+                </div>
+              </template>
+
+              <!-- Wrong Answer -->
+              <template x-if="resultColumns.length > 0 && !passed && !error">
+                <div class="alert alert-warning py-2 fade-in">
+                  <i class="bi bi-x-circle-fill me-2"></i>
+                  結果不正確，請再試試！
+                </div>
+              </template>
+
+              <!-- Result Table -->
+              <template x-if="resultColumns.length > 0">
+                <div class="fade-in">
+                  <h6 class="text-muted mb-2">你的查詢結果：</h6>
+                  <div class="result-table-wrapper">
+                    <table class="table table-sm table-dark result-table mb-0">
+                      <thead>
+                        <tr>
+                          <template x-for="col in resultColumns" :key="col">
+                            <th x-text="col"></th>
+                          </template>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template x-for="(row, ri) in resultRows" :key="ri">
+                          <tr>
+                            <template x-for="(cell, ci) in row" :key="ci">
+                              <td x-text="cell === null ? 'NULL' : cell"></td>
+                            </template>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+                  <small class="text-muted mt-1 d-block">共 <span x-text="resultRows.length"></span> 筆資料</small>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Navigation Buttons -->
+          <div class="d-flex justify-content-between mt-3">
+            <button class="btn btn-outline-secondary btn-sm" @click="selectLevel(currentIdx - 1)" :disabled="currentIdx === 0">
+              <i class="bi bi-chevron-left me-1"></i>上一題
+            </button>
+            <button class="btn btn-outline-info btn-sm" @click="selectLevel(currentIdx + 1)" :disabled="currentIdx === challenges.length - 1">
+              下一題<i class="bi bi-chevron-right ms-1"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- All Solved Banner -->
+      <template x-if="solvedCount === challenges.length">
+        <div class="text-center my-5 fade-in">
+          <h2 class="text-warning"><i class="bi bi-trophy-fill me-2"></i>全部通過！你是 SQL 大師！</h2>
+          <p class="text-muted">恭喜完成所有 <span x-text="challenges.length"></span> 道挑戰！</p>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  <!-- Confetti Canvas -->
+  <canvas id="confetti" class="confetti"></canvas>
+
+  <script>
+    function sqlChallenge() {
+      return {
+        db: null,
+        dbReady: false,
+        currentIdx: 0,
+        userSQL: '',
+        running: false,
+        error: null,
+        passed: false,
+        showHint: false,
+        resultColumns: [],
+        resultRows: [],
+        solved: {},
+        userCodes: {},
+
+        get current() {
+          return this.challenges[this.currentIdx];
+        },
+        get solvedCount() {
+          return Object.values(this.solved).filter(Boolean).length;
+        },
+
+        challenges: [
+          // ========== #1 ==========
+          {
+            title: 'SELECT 基本查詢',
+            difficulty: '簡單',
+            tags: ['SELECT', '基礎'],
+            description: `<p>寫一個 SQL 查詢，從 <code>employees</code> 表中取出<strong>所有員工</strong>的 <code>name</code> 和 <code>salary</code>。</p>`,
+            hint: '使用 <code>SELECT column1, column2 FROM table_name</code> 語法。',
+            schema: `CREATE TABLE employees (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  department TEXT,
+  salary INTEGER
+);
+
+INSERT INTO employees VALUES
+(1, 'Alice',   'Engineering', 85000),
+(2, 'Bob',     'Marketing',   62000),
+(3, 'Charlie', 'Engineering', 92000),
+(4, 'Diana',   'HR',          58000),
+(5, 'Eve',     'Marketing',   71000);`,
+            expectedColumns: ['name', 'salary'],
+            expectedRows: [
+              ['Alice', 85000],
+              ['Bob', 62000],
+              ['Charlie', 92000],
+              ['Diana', 58000],
+              ['Eve', 71000]
+            ],
+            defaultCode: '-- 選出所有員工的 name 和 salary\nSELECT '
+          },
+          // ========== #2 ==========
+          {
+            title: 'WHERE 條件篩選',
+            difficulty: '簡單',
+            tags: ['WHERE', '條件'],
+            description: `<p>從 <code>employees</code> 表找出<strong>薪水大於 70000</strong> 的員工，回傳 <code>name</code> 和 <code>salary</code>。</p>`,
+            hint: '使用 <code>WHERE salary > 70000</code> 來篩選。',
+            schema: `CREATE TABLE employees (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  department TEXT,
+  salary INTEGER
+);
+
+INSERT INTO employees VALUES
+(1, 'Alice',   'Engineering', 85000),
+(2, 'Bob',     'Marketing',   62000),
+(3, 'Charlie', 'Engineering', 92000),
+(4, 'Diana',   'HR',          58000),
+(5, 'Eve',     'Marketing',   71000);`,
+            expectedColumns: ['name', 'salary'],
+            expectedRows: [
+              ['Alice', 85000],
+              ['Charlie', 92000],
+              ['Eve', 71000]
+            ],
+            defaultCode: '-- 找出薪水大於 70000 的員工\nSELECT '
+          },
+          // ========== #3 ==========
+          {
+            title: 'ORDER BY 排序',
+            difficulty: '簡單',
+            tags: ['ORDER BY', '排序'],
+            description: `<p>查詢所有員工的 <code>name</code> 與 <code>salary</code>，按照 <code>salary</code> <strong>由高到低</strong>排序。</p>`,
+            hint: '使用 <code>ORDER BY salary DESC</code>。',
+            schema: `CREATE TABLE employees (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  department TEXT,
+  salary INTEGER
+);
+
+INSERT INTO employees VALUES
+(1, 'Alice',   'Engineering', 85000),
+(2, 'Bob',     'Marketing',   62000),
+(3, 'Charlie', 'Engineering', 92000),
+(4, 'Diana',   'HR',          58000),
+(5, 'Eve',     'Marketing',   71000);`,
+            expectedColumns: ['name', 'salary'],
+            expectedRows: [
+              ['Charlie', 92000],
+              ['Alice', 85000],
+              ['Eve', 71000],
+              ['Bob', 62000],
+              ['Diana', 58000]
+            ],
+            defaultCode: '-- 按薪水由高到低排列\nSELECT '
+          },
+          // ========== #4 ==========
+          {
+            title: 'DISTINCT 去重複',
+            difficulty: '簡單',
+            tags: ['DISTINCT'],
+            description: `<p>查詢 <code>employees</code> 表中有哪些<strong>不重複的部門</strong>（<code>department</code>）。</p>`,
+            hint: '使用 <code>SELECT DISTINCT column FROM table</code>。',
+            schema: `CREATE TABLE employees (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  department TEXT,
+  salary INTEGER
+);
+
+INSERT INTO employees VALUES
+(1, 'Alice',   'Engineering', 85000),
+(2, 'Bob',     'Marketing',   62000),
+(3, 'Charlie', 'Engineering', 92000),
+(4, 'Diana',   'HR',          58000),
+(5, 'Eve',     'Marketing',   71000);`,
+            expectedColumns: ['department'],
+            expectedRows: [
+              ['Engineering'],
+              ['Marketing'],
+              ['HR']
+            ],
+            defaultCode: '-- 列出所有不重複的部門\nSELECT '
+          },
+          // ========== #5 ==========
+          {
+            title: 'COUNT 聚合函數',
+            difficulty: '簡單',
+            tags: ['COUNT', 'GROUP BY'],
+            description: `<p>計算每個 <code>department</code> 有多少位員工，回傳 <code>department</code> 和員工數量 <code>count</code>。</p>
+<p>按照 <code>count</code> 由多到少排序。</p>`,
+            hint: '使用 <code>COUNT(*)</code> 搭配 <code>GROUP BY</code>，以及 <code>ORDER BY count DESC</code>。',
+            schema: `CREATE TABLE employees (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  department TEXT,
+  salary INTEGER
+);
+
+INSERT INTO employees VALUES
+(1, 'Alice',   'Engineering', 85000),
+(2, 'Bob',     'Marketing',   62000),
+(3, 'Charlie', 'Engineering', 92000),
+(4, 'Diana',   'HR',          58000),
+(5, 'Eve',     'Marketing',   71000);`,
+            expectedColumns: ['department', 'count'],
+            expectedRows: [
+              ['Engineering', 2],
+              ['Marketing', 2],
+              ['HR', 1]
+            ],
+            defaultCode: '-- 計算每個部門的員工數量\nSELECT '
+          },
+          // ========== #6 ==========
+          {
+            title: 'JOIN 聯結查詢',
+            difficulty: '中等',
+            tags: ['JOIN', '多表查詢'],
+            description: `<p>有兩張表：<code>students</code> 和 <code>scores</code>。</p>
+<p>查詢每位學生的 <code>name</code> 和 <code>score</code>，回傳結果按 <code>score</code> 由高到低排序。</p>`,
+            hint: '使用 <code>INNER JOIN</code> 或 <code>JOIN</code>，搭配 <code>ON students.id = scores.student_id</code>。',
+            schema: `CREATE TABLE students (
+  id INTEGER PRIMARY KEY,
+  name TEXT
+);
+
+CREATE TABLE scores (
+  id INTEGER PRIMARY KEY,
+  student_id INTEGER,
+  score INTEGER
+);
+
+INSERT INTO students VALUES (1,'小明'), (2,'小華'), (3,'小美');
+INSERT INTO scores VALUES (1,1,88), (2,2,95), (3,3,72);`,
+            expectedColumns: ['name', 'score'],
+            expectedRows: [
+              ['小華', 95],
+              ['小明', 88],
+              ['小美', 72]
+            ],
+            defaultCode: '-- 查詢每位學生的成績\nSELECT '
+          },
+          // ========== #7 ==========
+          {
+            title: 'LEFT JOIN 與 NULL',
+            difficulty: '中等',
+            tags: ['LEFT JOIN', 'NULL'],
+            description: `<p>使用 <code>LEFT JOIN</code> 查詢所有學生的成績，若學生<strong>沒有成績紀錄</strong>，<code>score</code> 顯示 <code>NULL</code>。</p>
+<p>依 <code>name</code> 排序。</p>`,
+            hint: '使用 <code>LEFT JOIN</code> 可以保留左表所有資料，即使右表沒有匹配。',
+            schema: `CREATE TABLE students (
+  id INTEGER PRIMARY KEY,
+  name TEXT
+);
+
+CREATE TABLE scores (
+  id INTEGER PRIMARY KEY,
+  student_id INTEGER,
+  score INTEGER
+);
+
+INSERT INTO students VALUES (1,'小明'), (2,'小華'), (3,'小美'), (4,'小龍');
+INSERT INTO scores VALUES (1,1,88), (2,2,95), (3,3,72);`,
+            expectedColumns: ['name', 'score'],
+            expectedRows: [
+              ['小明', 88],
+              ['小美', 72],
+              ['小華', 95],
+              ['小龍', null]
+            ],
+            defaultCode: '-- 使用 LEFT JOIN 查詢所有學生的成績\nSELECT '
+          },
+          // ========== #8 ==========
+          {
+            title: 'HAVING 過濾分組',
+            difficulty: '中等',
+            tags: ['GROUP BY', 'HAVING'],
+            description: `<p>在 <code>orders</code> 表中，找出<strong>訂單總金額大於 500</strong> 的客戶。</p>
+<p>回傳 <code>customer</code> 和 <code>total</code>（訂單金額加總），按 <code>total</code> 由高到低排序。</p>`,
+            hint: '<code>HAVING</code> 用在 <code>GROUP BY</code> 之後，可篩選聚合結果。',
+            schema: `CREATE TABLE orders (
+  id INTEGER PRIMARY KEY,
+  customer TEXT,
+  amount INTEGER
+);
+
+INSERT INTO orders VALUES
+(1, 'Tom',   200),
+(2, 'Tom',   350),
+(3, 'Jerry', 150),
+(4, 'Jerry', 400),
+(5, 'Spike', 100),
+(6, 'Spike', 80);`,
+            expectedColumns: ['customer', 'total'],
+            expectedRows: [
+              ['Jerry', 550],
+              ['Tom', 550]
+            ],
+            defaultCode: '-- 找出訂單總額大於 500 的客戶\nSELECT '
+          },
+          // ========== #9 ==========
+          {
+            title: '子查詢 Subquery',
+            difficulty: '中等',
+            tags: ['子查詢', 'Subquery'],
+            description: `<p>找出 <code>employees</code> 表中<strong>薪水高於平均薪水</strong>的員工。</p>
+<p>回傳 <code>name</code> 和 <code>salary</code>，按 <code>salary</code> 由高到低排序。</p>`,
+            hint: '使用子查詢計算平均薪水：<code>WHERE salary > (SELECT AVG(salary) FROM employees)</code>。',
+            schema: `CREATE TABLE employees (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  department TEXT,
+  salary INTEGER
+);
+
+INSERT INTO employees VALUES
+(1, 'Alice',   'Engineering', 85000),
+(2, 'Bob',     'Marketing',   62000),
+(3, 'Charlie', 'Engineering', 92000),
+(4, 'Diana',   'HR',          58000),
+(5, 'Eve',     'Marketing',   71000);`,
+            expectedColumns: ['name', 'salary'],
+            expectedRows: [
+              ['Charlie', 92000],
+              ['Alice', 85000]
+            ],
+            defaultCode: '-- 找出薪水高於平均的員工\nSELECT '
+          },
+          // ========== #10 ==========
+          {
+            title: 'CASE WHEN 條件運算',
+            difficulty: '中等',
+            tags: ['CASE', '條件'],
+            description: `<p>為每位員工加上薪資等級 <code>level</code>：</p>
+<ul>
+  <li>薪水 >= 90000：<strong>高薪</strong></li>
+  <li>薪水 >= 70000：<strong>中薪</strong></li>
+  <li>其餘：<strong>一般</strong></li>
+</ul>
+<p>回傳 <code>name</code>、<code>salary</code>、<code>level</code>，按 <code>salary</code> 由高到低排序。</p>`,
+            hint: '使用 <code>CASE WHEN ... THEN ... ELSE ... END</code> 語法。',
+            schema: `CREATE TABLE employees (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  department TEXT,
+  salary INTEGER
+);
+
+INSERT INTO employees VALUES
+(1, 'Alice',   'Engineering', 85000),
+(2, 'Bob',     'Marketing',   62000),
+(3, 'Charlie', 'Engineering', 92000),
+(4, 'Diana',   'HR',          58000),
+(5, 'Eve',     'Marketing',   71000);`,
+            expectedColumns: ['name', 'salary', 'level'],
+            expectedRows: [
+              ['Charlie', 92000, '高薪'],
+              ['Alice', 85000, '中薪'],
+              ['Eve', 71000, '中薪'],
+              ['Bob', 62000, '一般'],
+              ['Diana', 58000, '一般']
+            ],
+            defaultCode: "-- 使用 CASE WHEN 分類薪資等級\nSELECT "
+          },
+          // ========== #11 ==========
+          {
+            title: 'LIKE 模糊查詢',
+            difficulty: '簡單',
+            tags: ['LIKE', '模糊搜尋'],
+            description: `<p>從 <code>products</code> 表找出名稱包含 <strong>「巧克力」</strong> 的商品。</p>
+<p>回傳 <code>name</code> 和 <code>price</code>，按 <code>price</code> 排序。</p>`,
+            hint: '使用 <code>LIKE \'%巧克力%\'</code> 可進行模糊匹配。',
+            schema: `CREATE TABLE products (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  price INTEGER,
+  category TEXT
+);
+
+INSERT INTO products VALUES
+(1, '黑巧克力蛋糕', 180, '蛋糕'),
+(2, '草莓慕斯', 220, '蛋糕'),
+(3, '巧克力餅乾', 60, '餅乾'),
+(4, '抹茶拿鐵', 75, '飲料'),
+(5, '巧克力牛奶', 45, '飲料'),
+(6, '原味吐司', 35, '麵包');`,
+            expectedColumns: ['name', 'price'],
+            expectedRows: [
+              ['巧克力牛奶', 45],
+              ['巧克力餅乾', 60],
+              ['黑巧克力蛋糕', 180]
+            ],
+            defaultCode: "-- 找出名稱包含「巧克力」的商品\nSELECT "
+          },
+          // ========== #12 ==========
+          {
+            title: 'BETWEEN 與 IN',
+            difficulty: '簡單',
+            tags: ['BETWEEN', 'IN'],
+            description: `<p>從 <code>products</code> 表找出價格在 <strong>50 到 100 之間</strong>（含）的<strong>餅乾或飲料</strong>。</p>
+<p>回傳 <code>name</code>、<code>price</code>、<code>category</code>。</p>`,
+            hint: '組合使用 <code>BETWEEN 50 AND 100</code> 和 <code>IN (\'餅乾\', \'飲料\')</code>。',
+            schema: `CREATE TABLE products (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  price INTEGER,
+  category TEXT
+);
+
+INSERT INTO products VALUES
+(1, '黑巧克力蛋糕', 180, '蛋糕'),
+(2, '草莓慕斯', 220, '蛋糕'),
+(3, '巧克力餅乾', 60, '餅乾'),
+(4, '抹茶拿鐵', 75, '飲料'),
+(5, '巧克力牛奶', 45, '飲料'),
+(6, '原味吐司', 35, '麵包');`,
+            expectedColumns: ['name', 'price', 'category'],
+            expectedRows: [
+              ['巧克力餅乾', 60, '餅乾'],
+              ['抹茶拿鐵', 75, '飲料']
+            ],
+            defaultCode: "-- 找出 50~100 元的餅乾或飲料\nSELECT "
+          },
+          // ========== #13 ==========
+          {
+            title: 'SUM 與 AVG',
+            difficulty: '中等',
+            tags: ['SUM', 'AVG', 'ROUND'],
+            description: `<p>計算每個 <code>category</code> 的<strong>平均價格</strong>（取整數），命名為 <code>avg_price</code>。</p>
+<p>按 <code>avg_price</code> 由高到低排序。</p>`,
+            hint: '使用 <code>ROUND(AVG(price))</code> 或 <code>CAST(AVG(price) AS INTEGER)</code> 取整數。',
+            schema: `CREATE TABLE products (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  price INTEGER,
+  category TEXT
+);
+
+INSERT INTO products VALUES
+(1, '黑巧克力蛋糕', 180, '蛋糕'),
+(2, '草莓慕斯', 220, '蛋糕'),
+(3, '巧克力餅乾', 60, '餅乾'),
+(4, '抹茶拿鐵', 75, '飲料'),
+(5, '巧克力牛奶', 45, '飲料'),
+(6, '原味吐司', 35, '麵包');`,
+            expectedColumns: ['category', 'avg_price'],
+            expectedRows: [
+              ['蛋糕', 200],
+              ['餅乾', 60],
+              ['飲料', 60],
+              ['麵包', 35]
+            ],
+            defaultCode: "-- 計算每個類別的平均價格\nSELECT "
+          },
+          // ========== #14 ==========
+          {
+            title: '多表 JOIN + 聚合',
+            difficulty: '困難',
+            tags: ['JOIN', 'GROUP BY', '聚合'],
+            description: `<p>有 <code>customers</code> 和 <code>orders</code> 兩張表。</p>
+<p>查詢每位客戶的 <code>name</code> 和 <strong>訂單總金額</strong> <code>total_spent</code>。</p>
+<p>只顯示有訂單的客戶，按 <code>total_spent</code> 由高到低排序。</p>`,
+            hint: '使用 <code>JOIN</code> 連結兩張表後，用 <code>GROUP BY</code> 聚合，再用 <code>SUM()</code> 計算總金額。',
+            schema: `CREATE TABLE customers (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  city TEXT
+);
+
+CREATE TABLE orders (
+  id INTEGER PRIMARY KEY,
+  customer_id INTEGER,
+  amount INTEGER,
+  order_date TEXT
+);
+
+INSERT INTO customers VALUES
+(1, '王小明', '台北'), (2, '李小華', '台中'),
+(3, '張小美', '高雄'), (4, '陳大壯', '台北');
+
+INSERT INTO orders VALUES
+(1, 1, 1200, '2025-01-15'),
+(2, 1, 800,  '2025-02-20'),
+(3, 2, 2500, '2025-01-10'),
+(4, 3, 600,  '2025-03-01'),
+(5, 2, 1300, '2025-03-15'),
+(6, 3, 900,  '2025-02-28');`,
+            expectedColumns: ['name', 'total_spent'],
+            expectedRows: [
+              ['李小華', 3800],
+              ['王小明', 2000],
+              ['張小美', 1500]
+            ],
+            defaultCode: '-- 查詢每位客戶的訂單總金額\nSELECT '
+          },
+          // ========== #15 ==========
+          {
+            title: '窗口函數 RANK',
+            difficulty: '困難',
+            tags: ['窗口函數', 'RANK', 'OVER'],
+            description: `<p>為每位員工在其部門內<strong>依薪水排名</strong>。</p>
+<p>回傳 <code>department</code>、<code>name</code>、<code>salary</code>、<code>rank</code>（部門內薪水排名，由高到低）。</p>
+<p>結果先按 <code>department</code> 排列，排名相同時按 <code>name</code> 排列。</p>`,
+            hint: '使用 <code>RANK() OVER (PARTITION BY department ORDER BY salary DESC)</code>。',
+            schema: `CREATE TABLE employees (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  department TEXT,
+  salary INTEGER
+);
+
+INSERT INTO employees VALUES
+(1, 'Alice',   'Engineering', 85000),
+(2, 'Bob',     'Marketing',   62000),
+(3, 'Charlie', 'Engineering', 92000),
+(4, 'Diana',   'HR',          58000),
+(5, 'Eve',     'Marketing',   71000),
+(6, 'Frank',   'Engineering', 78000),
+(7, 'Grace',   'HR',          63000);`,
+            expectedColumns: ['department', 'name', 'salary', 'rank'],
+            expectedRows: [
+              ['Engineering', 'Charlie', 92000, 1],
+              ['Engineering', 'Alice', 85000, 2],
+              ['Engineering', 'Frank', 78000, 3],
+              ['HR', 'Grace', 63000, 1],
+              ['HR', 'Diana', 58000, 2],
+              ['Marketing', 'Eve', 71000, 1],
+              ['Marketing', 'Bob', 62000, 2]
+            ],
+            defaultCode: '-- 使用窗口函數計算部門內薪水排名\nSELECT '
+          }
+        ],
+
+        async init() {
+          // Load saved progress
+          try {
+            const saved = localStorage.getItem('sql_challenge_solved');
+            if (saved) this.solved = JSON.parse(saved);
+            const codes = localStorage.getItem('sql_challenge_codes');
+            if (codes) this.userCodes = JSON.parse(codes);
+          } catch (e) { /* ignore */ }
+
+          this.userSQL = this.userCodes[this.currentIdx] || this.current.defaultCode;
+
+          // Init sql.js
+          this.SQL = await initSqlJs({
+            locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
+          });
+          this.dbReady = true;
+        },
+
+        selectLevel(idx) {
+          if (idx < 0 || idx >= this.challenges.length) return;
+          // Save current code
+          this.userCodes[this.currentIdx] = this.userSQL;
+          this.saveProgress();
+
+          this.currentIdx = idx;
+          this.userSQL = this.userCodes[idx] || this.challenges[idx].defaultCode;
+          this.error = null;
+          this.passed = false;
+          this.resultColumns = [];
+          this.resultRows = [];
+          this.showHint = false;
+        },
+
+        resetCode() {
+          this.userSQL = this.current.defaultCode;
+          this.error = null;
+          this.passed = false;
+          this.resultColumns = [];
+          this.resultRows = [];
+        },
+
+        goNext() {
+          this.selectLevel(this.currentIdx + 1);
+        },
+
+        runSQL() {
+          if (this.running) return;
+          this.running = true;
+          this.error = null;
+          this.passed = false;
+          this.resultColumns = [];
+          this.resultRows = [];
+
+          // Save code
+          this.userCodes[this.currentIdx] = this.userSQL;
+
+          setTimeout(() => {
+            try {
+              // Create a fresh DB for each run with the challenge schema
+              let tempDb = new this.SQL.Database();
+
+              // Setup schema
+              tempDb.run(this.current.schema);
+
+              // Run user SQL
+              const trimmed = this.userSQL.trim().replace(/;+$/, '');
+              if (!trimmed) {
+                this.error = '請輸入 SQL 查詢！';
+                this.running = false;
+                tempDb.close();
+                return;
+              }
+
+              const results = tempDb.exec(trimmed);
+              tempDb.close();
+
+              if (!results || results.length === 0) {
+                this.error = '查詢沒有回傳任何結果。請確認你的 SQL 是否為 SELECT 語句。';
+                this.running = false;
+                return;
+              }
+
+              const result = results[0];
+              this.resultColumns = result.columns;
+              this.resultRows = result.values;
+
+              // Compare with expected
+              this.passed = this.compareResults(
+                this.current.expectedColumns,
+                this.current.expectedRows,
+                result.columns,
+                result.values
+              );
+
+              if (this.passed) {
+                this.solved[this.currentIdx] = true;
+                this.saveProgress();
+                this.launchConfetti();
+              }
+
+            } catch (e) {
+              this.error = e.message;
+            }
+            this.running = false;
+          }, 100);
+        },
+
+        compareResults(expCols, expRows, actCols, actRows) {
+          // Compare columns (case insensitive)
+          if (expCols.length !== actCols.length) return false;
+          for (let i = 0; i < expCols.length; i++) {
+            if (expCols[i].toLowerCase() !== actCols[i].toLowerCase()) return false;
+          }
+
+          // Compare rows
+          if (expRows.length !== actRows.length) return false;
+          for (let r = 0; r < expRows.length; r++) {
+            for (let c = 0; c < expCols.length; c++) {
+              const expected = expRows[r][c];
+              const actual = actRows[r][c];
+              // Handle null comparison
+              if (expected === null && actual === null) continue;
+              if (expected === null || actual === null) return false;
+              // Loose comparison to handle number/string
+              if (String(expected) !== String(actual)) return false;
+            }
+          }
+          return true;
+        },
+
+        saveProgress() {
+          try {
+            localStorage.setItem('sql_challenge_solved', JSON.stringify(this.solved));
+            localStorage.setItem('sql_challenge_codes', JSON.stringify(this.userCodes));
+          } catch (e) { /* ignore */ }
+        },
+
+        launchConfetti() {
+          const canvas = document.getElementById('confetti');
+          const ctx = canvas.getContext('2d');
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+
+          const pieces = [];
+          const colors = ['#e94560', '#00d2ff', '#00e676', '#ffab00', '#ff6b6b', '#ab47bc'];
+
+          for (let i = 0; i < 120; i++) {
+            pieces.push({
+              x: Math.random() * canvas.width,
+              y: Math.random() * canvas.height - canvas.height,
+              w: Math.random() * 8 + 4,
+              h: Math.random() * 6 + 3,
+              color: colors[Math.floor(Math.random() * colors.length)],
+              vy: Math.random() * 4 + 2,
+              vx: Math.random() * 2 - 1,
+              rot: Math.random() * 360,
+              rv: Math.random() * 8 - 4
+            });
+          }
+
+          let frame = 0;
+          const maxFrames = 120;
+
+          function animate() {
+            if (frame > maxFrames) {
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              return;
+            }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            pieces.forEach(p => {
+              ctx.save();
+              ctx.translate(p.x, p.y);
+              ctx.rotate((p.rot * Math.PI) / 180);
+              ctx.fillStyle = p.color;
+              ctx.globalAlpha = Math.max(0, 1 - frame / maxFrames);
+              ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+              ctx.restore();
+              p.y += p.vy;
+              p.x += p.vx;
+              p.rot += p.rv;
+            });
+            frame++;
+            requestAnimationFrame(animate);
+          }
+          animate();
+        }
+      };
+    }
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>
