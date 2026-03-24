@@ -27,7 +27,7 @@ const GROUND  = 608;   // world-Y of ground (Y increases downward)
 const BH      = 40;    // block height px
 const INIT_W  = 260;   // first block width
 const MIN_W   = 22;    // game-over: block too thin
-const CAM_TOP = 200;   // desired screenY for stack top when scrolling
+const CAM_TOP = 440;   // desired screenY for stack top when scrolling
 
 // Block visual themes — cycle every floor
 const THEMES = [
@@ -45,6 +45,7 @@ const th = i => THEMES[i % THEMES.length];
 // Camera: screenY = worldY + cam
 // cam increases as building grows to keep view centred
 let cam = 0, camTarget = 0;
+let hardMode = false;
 
 let S; // game state
 
@@ -52,7 +53,7 @@ function newState() {
   return {
     phase: 'start',
     floors: 0,
-    hi: +(localStorage['hbHiV3'] || 0),
+    hi: +(localStorage[hardMode ? 'hbHiHard' : 'hbHiNorm'] || 0),
     combo: 0,
     score: 0,
     stack:  [],     // {x, wy, w, ti}  wy=world-Y top of block
@@ -67,9 +68,9 @@ function newState() {
   };
 }
 
-function init()    { S = newState(); cam = 0; camTarget = 0; }
-function play()    { init(); S.phase = 'playing'; spawn(); }
-function restart() { play(); }
+function init()         { S = newState(); cam = 0; camTarget = 0; }
+function playMode(hard) { hardMode = hard; init(); S.phase = 'playing'; spawn(); }
+function restart()      { playMode(hardMode); }
 
 // Speed increases every 5 blocks placed, capped at 400
 const spd    = () => Math.min(400, 85 + Math.floor(S.floors / 5) * 22);
@@ -78,9 +79,8 @@ const topSY  = () => topWY() + cam;   // screen-Y of top of topmost block
 
 function spawn() {
   const prevW = S.stack.length ? S.stack[S.stack.length-1].w : INIT_W;
-  // Spawn block in the middle of the screen when building is short;
-  // moves toward top as building grows (keeps room to fall)
-  const spawnSY = Math.max(85, topSY() - BH - 180);
+  // Always spawn ~200px above the landing zone so block appears mid-screen
+  const spawnSY = Math.max(85, topSY() - BH - 200);
   S.mov = { x: W/2 - prevW/2, sy: spawnSY, w: prevW, dir: 1, ti: S.floors };
 }
 
@@ -145,7 +145,7 @@ function land() {
     addP(W/2, b.sy-35, '#34D399', 36);
   }
 
-  if (S.floors > S.hi) { S.hi = S.floors; localStorage['hbHiV3'] = S.hi; }
+  if (S.floors > S.hi) { S.hi = S.floors; localStorage[hardMode ? 'hbHiHard' : 'hbHiNorm'] = S.hi; }
   spawn();
 }
 
@@ -304,7 +304,7 @@ function drawStack() {
 }
 
 function drawGhost() {
-  if (!S.mov || S.dying) return;
+  if (!S.mov || S.dying || hardMode) return;
   const lsy=topSY()-BH;
   let nx, nw;
   if (!S.stack.length) { nx=S.mov.x; nw=S.mov.w; }
@@ -355,6 +355,10 @@ function drawHUD() {
   g.font='11px Segoe UI'; g.fillStyle='#475569';
   g.fillText('最高 '+S.hi+' 層', 14, H-26);
   g.fillText('分數 '+S.score, 14, H-10);
+  if (hardMode) {
+    g.font='bold 11px Segoe UI'; g.fillStyle='#EF4444';
+    g.fillText('困難', 14, H-58);
+  }
 
   g.textAlign='center';
   const sp=spd(), danger=sp>260;
@@ -406,13 +410,26 @@ function draw() {
 
   if (S.phase==='start') {
     g.fillStyle='#060c1e'; g.fillRect(0,0,W,H);
-    drawOverlay('🏗️ 蓋房子挑戰','#F59E0B',
-      ['精準投放方塊，無限向上疊高！',
-       '方塊越疊越窄，速度越來越快',
-       '掉落 或 方塊太細 → 遊戲結束',
-       '',
-       '最高紀錄：'+S.hi+' 層'],
-      {lbl:'開始挑戰',col:'#F59E0B'},{lbl:'← 返回大廳'});
+    // Custom start screen with two mode buttons
+    g.fillStyle='rgba(4,8,20,0.9)'; rr(48,148,W-96,410,16); g.fill();
+    g.strokeStyle='#F59E0B'; g.lineWidth=2; rr(48,148,W-96,410,16); g.stroke();
+    g.textAlign='center';
+    g.font='bold 34px Segoe UI'; g.fillStyle='#F59E0B'; g.fillText('🏗️ 蓋房子挑戰',W/2,206);
+    g.font='14px Segoe UI'; g.fillStyle='#94A3B8';
+    ['精準投放方塊，無限向上疊高！','方塊越疊越窄，速度越來越快','掉落 或 太細 → 遊戲結束'].forEach((l,i)=>g.fillText(l,W/2,248+i*26));
+    // Normal mode button
+    g.fillStyle='#F59E0B'; rr(80,338,145,46,10); g.fill();
+    g.font='bold 15px Segoe UI'; g.fillStyle='#000'; g.fillText('普通模式',152,367);
+    g.font='11px Segoe UI'; g.fillStyle='#000';
+    g.fillText('最高 '+(+(localStorage['hbHiNorm']||0))+' 層',152,381);
+    // Hard mode button
+    g.fillStyle='#991B1B'; rr(275,338,145,46,10); g.fill();
+    g.font='bold 15px Segoe UI'; g.fillStyle='#FFF'; g.fillText('困難模式',347,362);
+    g.font='11px Segoe UI'; g.fillStyle='rgba(255,200,200,0.8)';
+    g.fillText('無預覽  最高 '+(+(localStorage['hbHiHard']||0))+' 層',347,378);
+    // Back button
+    g.fillStyle='rgba(71,85,105,0.3)'; rr(W/2-70,398,140,36,8); g.fill();
+    g.font='13px Segoe UI'; g.fillStyle='#64748B'; g.fillText('← 返回大廳',W/2,422);
     g.restore(); return;
   }
 
@@ -420,10 +437,11 @@ function draw() {
     drawBg(); drawStack();
     g.fillStyle='rgba(0,0,0,0.65)'; g.fillRect(0,0,W,H);
     const newHi=S.floors>=S.hi;
+    const modeTag = hardMode ? ' 【困難】' : '';
     drawOverlay('💥 遊戲結束','#EF4444',
       ['第 '+S.floors+' 層  ／  分數 '+S.score,
        newHi?'🏆 新紀錄！恭喜！':'最高紀錄：'+S.hi+' 層',
-       ''],
+       modeTag],
       {lbl:'再挑戰',col:'#F59E0B'},{lbl:'← 返回大廳'});
     g.restore(); return;
   }
@@ -462,9 +480,10 @@ function loop(ts) {
 
 function onInput(cx, cy) {
   if (S.phase==='start') {
-    if(cy>398&&cy<444){play();return;}
-    if(cy>456&&cy<492){location.href='../index.html';return;}
-    play(); return;
+    if(cy>338&&cy<384&&cx>80&&cx<225){playMode(false);return;}  // 普通
+    if(cy>338&&cy<384&&cx>275&&cx<420){playMode(true);return;}  // 困難
+    if(cy>398&&cy<434){location.href='../index.html';return;}   // 返回
+    return;
   }
   if (S.phase==='over') {
     if(cy>398&&cy<444){restart();return;}
