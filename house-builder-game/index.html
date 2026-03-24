@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏗️ 蓋房子挑戰</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0f1a; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; min-height:100vh; font-family:'Segoe UI',system-ui,sans-serif;
+  overflow:hidden; user-select:none; }
+canvas { cursor:pointer; border-radius:12px; display:block;
+  box-shadow:0 0 50px rgba(245,158,11,0.15); }
+#hint { margin-top:10px; color:#475569; font-size:12px; }
+</style>
+</head>
+<body>
+<canvas id="c" width="500" height="700"></canvas>
+<div id="hint">點擊 / 空白鍵 投放 &nbsp;|&nbsp; ESC 返回</div>
+<script>
+'use strict';
+const cv = document.getElementById('c');
+const g  = cv.getContext('2d');
+const W = 500, H = 700;
+
+const GROUND  = 608;   // world-Y of ground (Y increases downward)
+const BH      = 40;    // block height px
+const INIT_W  = 260;   // first block width
+const MIN_W   = 22;    // game-over: block too thin
+const CAM_TOP = 200;   // desired screenY for stack top when scrolling
+
+// Block visual themes — cycle every floor
+const THEMES = [
+  { top:'#A89070', bot:'#7A6040', brick:false, lbl:'地基'    },
+  { top:'#D45050', bot:'#9A2828', brick:true,  lbl:'紅磚牆'  },
+  { top:'#E07830', bot:'#A04818', brick:true,  lbl:'橙磚牆'  },
+  { top:'#C8A020', bot:'#907010', brick:false, lbl:'混凝土'  },
+  { top:'#4878C8', bot:'#2848A8', brick:false, lbl:'玻璃幕牆'},
+  { top:'#48A068', bot:'#286848', brick:false, lbl:'綠建築'  },
+  { top:'#A850A8', bot:'#703078', brick:false, lbl:'紫石牆'  },
+  { top:'#40A8A8', bot:'#206868', brick:false, lbl:'青瓷磚'  },
+];
+const th = i => THEMES[i % THEMES.length];
+
+// Camera: screenY = worldY + cam
+// cam increases as building grows to keep view centred
+let cam = 0, camTarget = 0;
+
+let S; // game state
+
+function newState() {
+  return {
+    phase: 'start',
+    floors: 0,
+    hi: +(localStorage['hbHiV3'] || 0),
+    combo: 0,
+    score: 0,
+    stack:  [],     // {x, wy, w, ti}  wy=world-Y top of block
+    mov:    null,   // moving block  {x, sy, w, dir, ti}  sy=screen-Y (fixed ~90)
+    fal:    null,   // falling block {x, sy, w, ti}
+    pts:    [],     // particles
+    fts:    [],     // floating texts
+    shakeT: 0,
+    lastT:  0,
+    dying:  false,
+    dyingT: 0,
+  };
+}
+
+function init()    { S = newState(); cam = 0; camTarget = 0; }
+function play()    { init(); S.phase = 'playing'; spawn(); }
+function restart() { play(); }
+
+// Speed increases every 5 blocks placed, capped at 400
+const spd    = () => Math.min(400, 85 + Math.floor(S.floors / 5) * 22);
+const topWY  = () => S.stack.length ? S.stack[S.stack.length-1].wy : GROUND;
+const topSY  = () => topWY() + cam;   // screen-Y of top of topmost block
+
+function spawn() {
+  const prevW = S.stack.length ? S.stack[S.stack.length-1].w : INIT_W;
+  S.mov = { x: W/2 - prevW/2, sy: 90, w: prevW, dir: 1, ti: S.floors };
+}
+
+function drop() {
+  if (!S.mov || S.dying) return;
+  S.fal = { ...S.mov };
+  S.mov = null;
+}
+
+function addP(x, y, col, n) {
+  for (let i = 0; i < (n || 12); i++) {
+    const a = Math.random()*Math.PI*2, s = 50+Math.random()*100;
+    S.pts.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s-50, col, r:2+Math.random()*3.5, t:0 });
+  }
+}
+function addFT(txt, x, y, col, sz) {
+  S.fts.push({ txt, x, y, col:col||'#FFD700', sz:sz||22, t:0, life:1.8, vy:-50 });
+}
+
+function land() {
+  const b = S.fal; S.fal = null;
+  const bwy = b.sy - cam;   // convert screen-Y → world-Y
+
+  let nx, nw;
+  if (!S.stack.length) { nx = b.x; nw = b.w; }
+  else {
+    const p = S.stack[S.stack.length-1];
+    const l = Math.max(b.x, p.x), r = Math.min(b.x+b.w, p.x+p.w);
+    nw = r-l; nx = l;
+  }
+
+  addP(b.x+b.w/2, b.sy, th(b.ti).top, 8);
+
+  const die = (msg, col) => {
+    S.dying = true; S.dyingT = 0.9; S.shakeT = 0.6;
+    addFT(msg, W/2, b.sy-20, col||'#FF4444', 26);
+  };
+
+  if (nw <= 0) { die('完全掉落！'); return; }
+
+  // Push block to stack BEFORE game-over check so it renders
+  S.stack.push({ x:nx, wy:bwy, w:nw, ti:b.ti });
+  S.floors++;
+
+  if (nw < MIN_W) { die('方塊太細了！', '#FF8C00'); return; }
+
+  // Scoring
+  const over = b.w - nw;
+  if (over < 5) {
+    S.combo++;
+    S.score += 15 + S.combo * 5;
+    addFT(S.combo >= 3 ? '連擊×'+S.combo+'！' : '完美！', W/2, b.sy-20, '#FFD700', 24);
+    addP(nx+nw/2, b.sy, '#FFD700', 22);
+  } else {
+    S.combo = 0;
+    S.score += over/b.w < 0.3 ? 10 : 6;
+  }
+
+  // Milestone every 10 floors
+  if (S.floors % 10 === 0) {
+    addFT('🏢 '+S.floors+' 層！', W/2, b.sy-65, '#34D399', 28);
+    addP(W/2, b.sy-35, '#34D399', 36);
+  }
+
+  if (S.floors > S.hi) { S.hi = S.floors; localStorage['hbHiV3'] = S.hi; }
+  spawn();
+}
+
+function update(dt) {
+  if (S.dying) {
+    S.dyingT -= dt;
+    if (S.dyingT <= 0) { S.phase = 'over'; S.dying = false; }
+  }
+
+  if (S.phase === 'playing' && !S.dying) {
+    if (S.mov) {
+      S.mov.x += S.mov.dir * spd() * dt;
+      const mx = W - S.mov.w - 12;
+      if (S.mov.x > mx) { S.mov.x = mx; S.mov.dir = -1; }
+      if (S.mov.x < 12) { S.mov.x = 12; S.mov.dir =  1; }
+    }
+    if (S.fal) {
+      S.fal.sy += 440 * dt;
+      const lsy = topSY() - BH;
+      if (S.fal.sy >= lsy) { S.fal.sy = lsy; land(); }
+    }
+  }
+
+  // Smooth camera: keep stack top at CAM_TOP
+  camTarget = S.stack.length ? Math.max(0, CAM_TOP - topWY()) : 0;
+  cam += (camTarget - cam) * 6 * dt;
+  S.shakeT = Math.max(0, S.shakeT - dt);
+
+  for (let i = S.pts.length-1; i >= 0; i--) {
+    const p = S.pts[i];
+    p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 200*dt; p.t += dt;
+    p.a = Math.max(0, 1-p.t/0.9);
+    if (p.a <= 0) S.pts.splice(i, 1);
+  }
+  for (let i = S.fts.length-1; i >= 0; i--) {
+    const f = S.fts[i];
+    f.t += dt; f.y += f.vy*dt; f.a = Math.max(0, 1-f.t/f.life);
+    if (f.a <= 0) S.fts.splice(i, 1);
+  }
+}
+
+/* ===== DRAW ===== */
+
+function rr(x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x+r,y); g.lineTo(x+w-r,y); g.arcTo(x+w,y,x+w,y+r,r);
+  g.lineTo(x+w,y+h-r); g.arcTo(x+w,y+h,x+w-r,y+h,r);
+  g.lineTo(x+r,y+h); g.arcTo(x,y+h,x,y+h-r,r);
+  g.lineTo(x,y+r); g.arcTo(x,y,x+r,y,r);
+  g.closePath();
+}
+
+function lerpHex(a, b, t) {
+  const ah=parseInt(a.slice(1),16), bh=parseInt(b.slice(1),16);
+  const r2=((ah>>16&255)+((bh>>16&255)-(ah>>16&255))*t)|0;
+  const g2=((ah>>8&255) +((bh>>8&255) -(ah>>8&255))*t)|0;
+  const b2=((ah&255)    +((bh&255)    -(ah&255))*t)|0;
+  return '#'+(r2<<16|g2<<8|b2).toString(16).padStart(6,'0');
+}
+
+function drawBg() {
+  const hi2 = Math.min(1, cam/300);
+  const sk = g.createLinearGradient(0,0,0,H);
+  sk.addColorStop(0, lerpHex('#060c1e','#020612',hi2));
+  sk.addColorStop(1, lerpHex('#1a2d50','#080f22',hi2));
+  g.fillStyle=sk; g.fillRect(0,0,W,H);
+
+  // Stars
+  const sa = (0.5+hi2*0.5).toFixed(2);
+  [[28,22],[68,48],[148,26],[228,12],[308,38],[368,18],[58,78],
+   [140,66],[265,54],[320,75],[455,38],[482,82],[195,44]].forEach(([px,py]) => {
+    g.fillStyle='rgba(255,255,255,'+sa+')';
+    g.fillRect(px,py,2,2);
+  });
+
+  // Moon
+  g.fillStyle='#FFF8E1'; g.beginPath(); g.arc(430,55,26,0,Math.PI*2); g.fill();
+  g.fillStyle=lerpHex('#060c1e','#020612',hi2);
+  g.beginPath(); g.arc(442,48,22,0,Math.PI*2); g.fill();
+
+  // City silhouette pinned to ground level
+  const gsy = GROUND + cam;
+  if (gsy < H+80) {
+    [[8,100,45],[60,80,38],[108,118,32],[322,92,52],[382,68,42],[434,102,30],[472,55,28]].forEach(([bx,bh2,bw]) => {
+      const ty = gsy-bh2;
+      if (ty >= H) return;
+      g.fillStyle='rgba(8,16,34,0.85)'; g.fillRect(bx,ty,bw,Math.min(bh2,H-ty));
+      g.fillStyle='rgba(255,240,80,0.13)';
+      for (let wy2=ty+12; wy2<gsy-14; wy2+=18)
+        for (let wx2=bx+6; wx2<bx+bw-10; wx2+=13)
+          g.fillRect(wx2,wy2,6,8);
+    });
+  }
+  // Ground dirt
+  if (gsy < H) {
+    g.fillStyle='#2e1a0c'; g.fillRect(0,gsy,W,H-gsy);
+    const gr=g.createLinearGradient(0,gsy,0,gsy+18);
+    gr.addColorStop(0,'#6B4226'); gr.addColorStop(1,'#3D2210');
+    g.fillStyle=gr; g.fillRect(0,gsy,W,18);
+  }
+}
+
+function drawOneBlock(x, sy, w, ti, glow) {
+  if (sy > H+BH || sy+BH < 0) return;
+  const t = th(ti);
+  const gr = g.createLinearGradient(x,sy,x,sy+BH);
+  gr.addColorStop(0,t.top); gr.addColorStop(1,t.bot);
+  if (glow) { g.shadowColor=t.top; g.shadowBlur=20; }
+  g.fillStyle=gr; g.fillRect(x,sy,w,BH-2);
+  g.shadowBlur=0;
+  g.fillStyle='rgba(255,255,255,0.2)'; g.fillRect(x,sy,w,5);
+  if (t.brick && w>30) {
+    g.strokeStyle='rgba(0,0,0,0.22)'; g.lineWidth=1;
+    const rH=(BH-2)/2;
+    for (let row=0; row<2; row++) {
+      const off=row%2?18:0;
+      for (let bx2=x+off; bx2<x+w; bx2+=36) {
+        const bw2=Math.min(34,x+w-bx2);
+        if (bw2>4) g.strokeRect(bx2,sy+row*rH,bw2,rH);
+      }
+    }
+  }
+  if (glow) { g.strokeStyle='rgba(255,255,255,0.5)'; g.lineWidth=2; g.strokeRect(x,sy,w,BH-2); }
+  // Danger glow when thin
+  if (w < 80 && w >= MIN_W) {
+    const da=(80-w)/60;
+    g.strokeStyle='rgba(255,60,60,'+(da*0.85).toFixed(2)+')';
+    g.lineWidth=2+da*4; g.strokeRect(x,sy,w,BH-2);
+  }
+}
+
+function drawStack() {
+  S.stack.forEach((b, i) => {
+    const sy = b.wy + cam;
+    drawOneBlock(b.x, sy, b.w, b.ti, false);
+    // Door on ground floor
+    if (i===0 && sy<H) {
+      const dw=26, dh=BH*1.6, dx=b.x+b.w/2-13, dy=sy+(BH-2)-dh;
+      g.fillStyle='#3E2010'; g.fillRect(dx,dy,dw,dh);
+      g.fillStyle='#5C3018'; g.beginPath(); g.arc(dx+dw/2,dy,dw/2,Math.PI,0); g.fill();
+      g.fillStyle='#FFD700'; g.beginPath(); g.arc(dx+dw-7,dy+dh/2,3,0,Math.PI*2); g.fill();
+    }
+    // Windows
+    if (i>0 && b.w>55 && sy<H && sy+BH>0) {
+      [0.25,0.68].forEach(rx => {
+        const wx=b.x+b.w*rx-10, wy2=sy+7, ww=20, wh=BH-16;
+        if (wx<b.x||wx+ww>b.x+b.w) return;
+        g.fillStyle='#81D4FA'; g.fillRect(wx,wy2,ww,wh);
+        g.strokeStyle='#4E342E'; g.lineWidth=1.5; g.strokeRect(wx,wy2,ww,wh);
+        g.beginPath();
+        g.moveTo(wx+ww/2,wy2); g.lineTo(wx+ww/2,wy2+wh);
+        g.moveTo(wx,wy2+wh/2); g.lineTo(wx+ww,wy2+wh/2); g.stroke();
+      });
+    }
+  });
+}
+
+function drawGhost() {
+  if (!S.mov || S.dying) return;
+  const lsy=topSY()-BH;
+  let nx, nw;
+  if (!S.stack.length) { nx=S.mov.x; nw=S.mov.w; }
+  else {
+    const p=S.stack[S.stack.length-1];
+    const l=Math.max(S.mov.x,p.x), r=Math.min(S.mov.x+S.mov.w,p.x+p.w);
+    nw=r-l; nx=l;
+  }
+  if (nw<=0) return;
+  g.globalAlpha=0.2; g.fillStyle=th(S.mov.ti).top;
+  g.fillRect(nx,lsy,nw,BH-2); g.globalAlpha=1;
+}
+
+function drawCrane() {
+  const cx=W/2;
+  g.fillStyle='#F59E0B';
+  g.fillRect(cx-7,18,14,85); g.fillRect(cx-7,18,155,11); g.fillRect(cx-90,18,90,11);
+  g.fillStyle='#B45309'; g.fillRect(cx-108,12,26,25);
+  g.strokeStyle='#D97706'; g.lineWidth=2.5;
+  g.beginPath(); g.moveTo(cx,30); g.lineTo(cx+130,30); g.stroke();
+  g.beginPath(); g.moveTo(cx,55); g.lineTo(cx+65,30); g.stroke();
+  const bref=S.fal||S.mov;
+  if (bref) {
+    g.strokeStyle='rgba(170,170,170,0.8)'; g.lineWidth=1.5;
+    g.beginPath(); g.moveTo(cx+110,29); g.lineTo(bref.x+bref.w/2,bref.sy); g.stroke();
+  }
+}
+
+function drawSpeedBar() {
+  const pct=Math.min(1,(spd()-85)/315);
+  const mx=W-24, mH=210, mY=88;
+  g.fillStyle='rgba(0,0,0,0.3)'; rr(mx-5,mY,14,mH,4); g.fill();
+  if (pct>0.01) {
+    const bH=mH*pct;
+    const gr2=g.createLinearGradient(0,mY+mH,0,mY+mH-bH);
+    gr2.addColorStop(0,'#34D399'); gr2.addColorStop(0.5,'#FBBF24'); gr2.addColorStop(1,'#EF4444');
+    g.fillStyle=gr2; rr(mx-3,mY+mH-bH,10,bH,3); g.fill();
+  }
+  g.font='9px Segoe UI'; g.textAlign='center'; g.fillStyle='#64748B';
+  g.fillText('速',mx+2,mY-5); g.fillText('度',mx+2,mY+5);
+}
+
+function drawHUD() {
+  g.fillStyle='rgba(0,0,0,0.55)'; g.fillRect(0,H-74,W,74);
+
+  g.textAlign='left'; g.font='bold 24px Segoe UI'; g.fillStyle='#FFD700';
+  g.fillText('第 '+S.floors+' 層', 14, H-44);
+  g.font='11px Segoe UI'; g.fillStyle='#475569';
+  g.fillText('最高 '+S.hi+' 層', 14, H-26);
+  g.fillText('分數 '+S.score, 14, H-10);
+
+  g.textAlign='center';
+  const sp=spd(), danger=sp>260;
+  g.fillStyle=danger?'rgba(239,68,68,0.9)':'#94A3B8';
+  g.font=(danger?'bold ':'')+'13px Segoe UI';
+  g.fillText((danger?'⚡ ':'')+'速度 '+sp, W/2, H-52);
+
+  const bref=S.mov||S.fal;
+  if (bref && bref.w<80) {
+    const da=(80-bref.w)/60;
+    g.fillStyle='rgba(255,80,30,'+da.toFixed(2)+')';
+    g.font='bold 12px Segoe UI';
+    g.fillText('⚠ 寬度 '+Math.round(bref.w)+'px', W/2, H-33);
+  } else {
+    g.fillStyle='#374151'; g.font='11px Segoe UI';
+    g.fillText(bref?'方塊寬 '+Math.round(bref.w)+'px':'', W/2, H-33);
+  }
+  const next=(Math.ceil((S.floors+1)/10))*10;
+  g.fillStyle='#374151'; g.font='10px Segoe UI';
+  g.fillText('下個里程：'+next+' 層', W/2, H-14);
+
+  g.textAlign='right';
+  g.font='14px Segoe UI'; g.fillStyle='#94A3B8';
+  g.fillText('連擊 ×'+S.combo, W-35, H-52);
+  g.fillStyle=th(S.floors).top; g.font='11px Segoe UI';
+  g.fillText(th(S.floors).lbl, W-35, H-35);
+}
+
+function drawOverlay(title, tCol, lines, b1, b2) {
+  g.fillStyle='rgba(4,8,20,0.9)'; rr(48,168,W-96,380,16); g.fill();
+  g.strokeStyle=tCol; g.lineWidth=2; rr(48,168,W-96,380,16); g.stroke();
+  g.textAlign='center';
+  g.font='bold 34px Segoe UI'; g.fillStyle=tCol; g.fillText(title,W/2,226);
+  g.font='14px Segoe UI'; g.fillStyle='#94A3B8';
+  lines.forEach((l,i)=>g.fillText(l,W/2,268+i*30));
+  g.fillStyle=b1.col; rr(W/2-85,398,170,46,10); g.fill();
+  g.font='bold 17px Segoe UI'; g.fillStyle='#000'; g.fillText(b1.lbl,W/2,427);
+  if (b2) {
+    g.fillStyle='rgba(71,85,105,0.3)'; rr(W/2-70,456,140,36,8); g.fill();
+    g.font='13px Segoe UI'; g.fillStyle='#64748B'; g.fillText(b2.lbl,W/2,480);
+  }
+}
+
+function draw() {
+  g.clearRect(0,0,W,H);
+  const sx=S.shakeT>0?(Math.random()-.5)*10:0;
+  const sy=S.shakeT>0?(Math.random()-.5)*6:0;
+  g.save(); g.translate(sx,sy);
+
+  if (S.phase==='start') {
+    g.fillStyle='#060c1e'; g.fillRect(0,0,W,H);
+    drawOverlay('🏗️ 蓋房子挑戰','#F59E0B',
+      ['精準投放方塊，無限向上疊高！',
+       '方塊越疊越窄，速度越來越快',
+       '掉落 或 方塊太細 → 遊戲結束',
+       '',
+       '最高紀錄：'+S.hi+' 層'],
+      {lbl:'開始挑戰',col:'#F59E0B'},{lbl:'← 返回大廳'});
+    g.restore(); return;
+  }
+
+  if (S.phase==='over') {
+    drawBg(); drawStack();
+    g.fillStyle='rgba(0,0,0,0.65)'; g.fillRect(0,0,W,H);
+    const newHi=S.floors>=S.hi;
+    drawOverlay('💥 遊戲結束','#EF4444',
+      ['第 '+S.floors+' 層  ／  分數 '+S.score,
+       newHi?'🏆 新紀錄！恭喜！':'最高紀錄：'+S.hi+' 層',
+       ''],
+      {lbl:'再挑戰',col:'#F59E0B'},{lbl:'← 返回大廳'});
+    g.restore(); return;
+  }
+
+  // Playing / dying
+  drawBg();
+  drawStack();
+  drawGhost();
+  drawCrane();
+  if (S.fal) drawOneBlock(S.fal.x,S.fal.sy,S.fal.w,S.fal.ti,false);
+  if (S.mov) drawOneBlock(S.mov.x,S.mov.sy,S.mov.w,S.mov.ti,true);
+
+  S.pts.forEach(p=>{
+    g.globalAlpha=p.a; g.fillStyle=p.col;
+    g.beginPath(); g.arc(p.x,p.y,p.r,0,Math.PI*2); g.fill();
+  });
+  g.globalAlpha=1;
+  S.fts.forEach(f=>{
+    g.globalAlpha=f.a; g.font='bold '+f.sz+'px Segoe UI';
+    g.textAlign='center'; g.fillStyle=f.col;
+    g.shadowColor='rgba(0,0,0,0.9)'; g.shadowBlur=6;
+    g.fillText(f.txt,f.x,f.y); g.shadowBlur=0;
+  });
+  g.globalAlpha=1;
+
+  drawSpeedBar();
+  drawHUD();
+  g.restore();
+}
+
+function loop(ts) {
+  const dt=Math.min((ts-(S.lastT||ts))/1000,.05);
+  S.lastT=ts; update(dt); draw();
+  requestAnimationFrame(loop);
+}
+
+function onInput(cx, cy) {
+  if (S.phase==='start') {
+    if(cy>398&&cy<444){play();return;}
+    if(cy>456&&cy<492){location.href='../index.html';return;}
+    play(); return;
+  }
+  if (S.phase==='over') {
+    if(cy>398&&cy<444){restart();return;}
+    if(cy>456&&cy<492){location.href='../index.html';return;}
+    return;
+  }
+  if (S.phase==='playing') drop();
+}
+
+cv.addEventListener('click', e=>{
+  const r=cv.getBoundingClientRect();
+  onInput((e.clientX-r.left)*(W/r.width),(e.clientY-r.top)*(H/r.height));
+});
+cv.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  const r=cv.getBoundingClientRect();
+  onInput((e.touches[0].clientX-r.left)*(W/r.width),(e.touches[0].clientY-r.top)*(H/r.height));
+},{passive:false});
+document.addEventListener('keydown', e=>{
+  if(e.code==='Escape'){location.href='../index.html';return;}
+  if(e.code==='Space'||e.code==='ArrowDown'){
+    e.preventDefault();
+    if(S.phase==='playing') drop();
+    else if(S.phase==='start') play();
+  }
+});
+
+init();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
