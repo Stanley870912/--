@@ -78,7 +78,10 @@ const topSY  = () => topWY() + cam;   // screen-Y of top of topmost block
 
 function spawn() {
   const prevW = S.stack.length ? S.stack[S.stack.length-1].w : INIT_W;
-  S.mov = { x: W/2 - prevW/2, sy: 90, w: prevW, dir: 1, ti: S.floors };
+  // Spawn block in the middle of the screen when building is short;
+  // moves toward top as building grows (keeps room to fall)
+  const spawnSY = Math.max(85, topSY() - BH - 180);
+  S.mov = { x: W/2 - prevW/2, sy: spawnSY, w: prevW, dir: 1, ti: S.floors };
 }
 
 function drop() {
