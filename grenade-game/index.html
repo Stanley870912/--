@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>砲兵射擊訓練</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <style>
+    :root {
+      --mil-dark: #0a1208;
+      --mil-green: #2d4a1e;
+      --mil-light: #4a7c30;
+      --mil-khaki: #8b9467;
+      --mil-gold: #c8a84b;
+      --mil-red: #8b2020;
+      --mil-text: #c8d4a8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--mil-dark);
+      color: var(--mil-text);
+      font-family: 'Courier New', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .game-wrapper {
+      width: 820px;
+      max-width: 100vw;
+    }
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(135deg, #0f1e0a, #1a2e10);
+      border: 1px solid var(--mil-green);
+      border-bottom: none;
+      padding: 6px 14px;
+      font-size: 13px;
+      letter-spacing: 1px;
+    }
+    .top-bar .title-main {
+      font-size: 16px;
+      font-weight: bold;
+      color: var(--mil-gold);
+      text-shadow: 0 0 8px rgba(200,168,75,0.5);
+      letter-spacing: 3px;
+    }
+    .top-bar .stat {
+      color: var(--mil-text);
+      background: rgba(0,0,0,0.3);
+      padding: 2px 10px;
+      border: 1px solid var(--mil-green);
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .stat .val { color: var(--mil-gold); font-weight: bold; }
+    canvas {
+      display: block;
+      border: 2px solid var(--mil-green);
+      cursor: crosshair;
+      background: #0a1a1f;
+    }
+    .bottom-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #0f1e0a, #1a2e10);
+      border: 1px solid var(--mil-green);
+      border-top: none;
+      padding: 6px 14px;
+      flex-wrap: wrap;
+    }
+    .mil-btn {
+      background: linear-gradient(135deg, #1a3010, #243818);
+      color: var(--mil-text);
+      border: 1px solid var(--mil-khaki);
+      padding: 4px 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      cursor: pointer;
+      border-radius: 3px;
+      transition: all 0.2s;
+      letter-spacing: 1px;
+    }
+    .mil-btn:hover { background: var(--mil-green); color: #fff; border-color: var(--mil-gold); }
+    .mil-btn.danger { border-color: var(--mil-red); }
+    .mil-btn.danger:hover { background: var(--mil-red); }
+    .weapon-select {
+      background: rgba(0,0,0,0.4);
+      color: var(--mil-gold);
+      border: 1px solid var(--mil-khaki);
+      padding: 4px 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .weapon-select option { background: #1a2e10; }
+    .ammo-display {
+      color: var(--mil-text);
+      font-size: 12px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--mil-green);
+      padding: 4px 10px;
+      border-radius: 3px;
+    }
+    /* Overlay screens */
+    .overlay-screen {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(5, 10, 3, 0.92);
+      z-index: 10;
+    }
+    .canvas-container { position: relative; }
+    .mil-title {
+      font-size: 36px;
+      color: var(--mil-gold);
+      text-shadow: 0 0 20px rgba(200,168,75,0.7);
+      letter-spacing: 6px;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .mil-subtitle {
+      font-size: 13px;
+      color: var(--mil-khaki);
+      letter-spacing: 3px;
+      margin-bottom: 24px;
+    }
+    .emblem {
+      font-size: 64px;
+      margin-bottom: 12px;
+    }
+    .instructions {
+      background: rgba(20,40,10,0.8);
+      border: 1px solid var(--mil-green);
+      padding: 16px 24px;
+      border-radius: 6px;
+      max-width: 480px;
+      margin-bottom: 24px;
+      font-size: 13px;
+      line-height: 1.8;
+      color: var(--mil-text);
+    }
+    .instructions h5 { color: var(--mil-gold); margin-bottom: 8px; letter-spacing: 2px; }
+    .instructions li { margin-bottom: 4px; }
+    .level-complete-box {
+      background: rgba(20,40,10,0.95);
+      border: 2px solid var(--mil-gold);
+      padding: 32px 40px;
+      border-radius: 8px;
+      text-align: center;
+      min-width: 340px;
+    }
+    .level-complete-box h2 { color: var(--mil-gold); letter-spacing: 4px; margin-bottom: 16px; }
+    .reward-row { display: flex; justify-content: space-between; margin: 8px 0; font-size: 14px; padding: 4px 8px; border-bottom: 1px solid #2a3a1a; }
+    .reward-val { color: var(--mil-gold); font-weight: bold; }
+    .rank-badge { font-size: 48px; margin: 16px 0; }
+    .rank-label { font-size: 22px; color: var(--mil-gold); letter-spacing: 3px; }
+    /* Modal styles */
+    .modal-content {
+      background: #0f1e0a;
+      border: 1px solid var(--mil-khaki);
+      color: var(--mil-text);
+      font-family: 'Courier New', monospace;
+    }
+    .modal-header {
+      background: linear-gradient(135deg, #1a3010, #243818);
+      border-bottom: 1px solid var(--mil-green);
+    }
+    .modal-title { color: var(--mil-gold); letter-spacing: 3px; }
+    .modal-footer { border-top: 1px solid var(--mil-green); }
+    .btn-close { filter: invert(1); }
+    .weapon-card {
+      background: rgba(20,40,10,0.7);
+      border: 1px solid var(--mil-green);
+      border-radius: 6px;
+      padding: 14px;
+      margin-bottom: 12px;
+      transition: border-color 0.2s;
+    }
+    .weapon-card:hover { border-color: var(--mil-gold); }
+    .weapon-card.locked { opacity: 0.7; }
+    .weapon-card.unlocked { border-color: var(--mil-light); }
+    .weapon-card .wname { font-size: 14px; color: var(--mil-gold); font-weight: bold; }
+    .weapon-card .wtype { font-size: 11px; color: var(--mil-khaki); margin-bottom: 6px; }
+    .weapon-card .wdesc { font-size: 11px; color: var(--mil-text); line-height: 1.6; margin-bottom: 8px; }
+    .weapon-card .wicon { font-size: 28px; margin-bottom: 6px; }
+    .spec-table { width: 100%; font-size: 11px; }
+    .spec-table td { padding: 2px 6px; }
+    .spec-table td:first-child { color: var(--mil-khaki); width: 50%; }
+    .spec-table td:last-child { color: var(--mil-text); }
+    .cost-badge {
+      background: rgba(200,168,75,0.2);
+      color: var(--mil-gold);
+      border: 1px solid var(--mil-gold);
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .unlocked-badge {
+      background: rgba(74,124,48,0.3);
+      color: #7dcc5a;
+      border: 1px solid #4a7c30;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .blast-bar-bg { background: rgba(0,0,0,0.4); border: 1px solid #2a3a1a; height: 8px; border-radius: 2px; margin-top: 6px; }
+    .blast-bar { height: 100%; background: linear-gradient(90deg, #4a7c30, #c8a84b); border-radius: 2px; transition: width 0.3s; }
+    .progress-dots { display: flex; gap: 4px; margin-top: 4px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #2a3a1a; border: 1px solid #3a5a2a; }
+    .dot.active { background: var(--mil-gold); border-color: var(--mil-gold); }
+    .back-link { position: fixed; top: 16px; left: 16px; z-index: 100; }
+  </style>
+</head>
+<body>
+
+<div x-data="gameApp()" x-init="init()">
+
+  <!-- Back button -->
+  <div class="back-link">
+    <a href="../index.html" class="mil-btn">← 返回</a>
+  </div>
+
+  <div class="game-wrapper">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <span class="title-main">☆ 砲兵射擊訓練 ☆</span>
+      <span class="stat">關卡 <span class="val" x-text="currentLevel + '/' + maxLevel"></span></span>
+      <span class="stat">分數 <span class="val" x-text="totalScore"></span></span>
+      <span class="stat">🪙 <span class="val" x-text="tokens"></span></span>
+      <span class="stat">評等 <span class="val" x-text="getRank()"></span></span>
+    </div>
+
+    <!-- Canvas Area -->
+    <div class="canvas-container">
+      <canvas id="gameCanvas" width="820" height="480"
+        @mousedown="onMouseDown($event)"
+        @mousemove="onMouseMove($event)"
+        @mouseup="onMouseUp($event)"
+        @mouseleave="onMouseLeave($event)"
+        @touchstart.prevent="onTouchStart($event)"
+        @touchmove.prevent="onTouchMove($event)"
+        @touchend.prevent="onTouchEnd($event)"
+      ></canvas>
+
+      <!-- Intro Screen -->
+      <div class="overlay-screen" x-show="gameState === 'intro'" x-transition>
+        <div class="emblem">🎖️</div>
+        <div class="mil-title">砲兵射擊訓練</div>
+        <div class="mil-subtitle">ARTILLERY TRAINING SIMULATOR · ROC ARMED FORCES</div>
+        <div class="instructions">
+          <h5>▌ 操作說明</h5>
+          <ul style="padding-left: 16px;">
+            <li>從左側發射台向後<strong>拖曳滑鼠</strong>來瞄準</li>
+            <li>拖曳距離決定<strong>投擲力道</strong></li>
+            <li><strong>放開滑鼠</strong>即發射</li>
+            <li>摧毀目標獲得<strong>代幣</strong>與分數</li>
+            <li>至商店解鎖更強力的武器</li>
+            <li>共10個關卡，依序挑戰！</li>
+          </ul>
+        </div>
+        <button class="mil-btn" style="font-size:16px; padding: 10px 32px; border-color: var(--mil-gold); color: var(--mil-gold);"
+          @click="startGame()">▶ 開始訓練</button>
+      </div>
+
+      <!-- Level Complete Screen -->
+      <div class="overlay-screen" x-show="gameState === 'levelComplete'" x-transition>
+        <div class="level-complete-box">
+          <h2>✦ 關卡完成 ✦</h2>
+          <div class="reward-row"><span>關卡</span><span class="reward-val" x-text="currentLevel + ' / ' + maxLevel"></span></div>
+          <div class="reward-row"><span>摧毀目標</span><span class="reward-val" x-text="levelStats.destroyed + ' 個'"></span></div>
+          <div class="reward-row"><span>本關分數</span><span class="reward-val" x-text="levelStats.score"></span></div>
+          <div class="reward-row"><span>本關獎勵</span><span class="reward-val">🪙 <span x-text="levelStats.tokensEarned"></span></span></div>
+          <div class="reward-row" style="border:none;"><span>代幣總計</span><span class="reward-val">🪙 <span x-text="tokens"></span></span></div>
+          <div style="margin-top: 16px; display:flex; gap:12px; justify-content:center;">
+            <button class="mil-btn" style="font-size:14px; padding:8px 20px;" @click="openShop()" data-bs-toggle="modal" data-bs-target="#shopModal">🏪 商店</button>
+            <button class="mil-btn" style="font-size:14px; padding:8px 20px; border-color: var(--mil-gold); color: var(--mil-gold);"
+              @click="nextLevel()">
+              <span x-show="currentLevel < maxLevel">下一關 ▶</span>
+              <span x-show="currentLevel >= maxLevel">查看結果</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game Over Screen -->
+      <div class="overlay-screen" x-show="gameState === 'gameOver'" x-transition>
+        <div class="level-complete-box" style="border-color: var(--mil-red);">
+          <h2 style="color:#e05050;">✘ 訓練失敗</h2>
+          <div style="font-size:13px; color: var(--mil-khaki); margin-bottom: 16px;">彈藥耗盡，目標未完全摧毀</div>
+          <div class="reward-row"><span>當前分數</span><span class="reward-val" x-text="totalScore"></span></div>
+          <div class="reward-row" style="border:none;"><span>代幣</span><span class="reward-val">🪙 <span x-text="tokens"></span></span></div>
+          <div style="margin-top: 16px; display:flex; gap:12px; justify-content:center;">
+            <button class="mil-btn danger" style="font-size:14px; padding:8px 20px;" @click="retryLevel()">↺ 重試關卡</button>
+            <button class="mil-btn" style="font-size:14px; padding:8px 20px;" @click="openShop()" data-bs-toggle="modal" data-bs-target="#shopModal">🏪 商店</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game Complete Screen -->
+      <div class="overlay-screen" x-show="gameState === 'gameComplete'" x-transition>
+        <div class="level-complete-box" style="border-color: var(--mil-gold); max-width: 480px;">
+          <div class="rank-badge">🏆</div>
+          <h2>訓練完成！</h2>
+          <div class="rank-label" x-text="getFinalRank()"></div>
+          <div style="margin: 16px 0;">
+            <div class="reward-row"><span>總分數</span><span class="reward-val" x-text="totalScore"></span></div>
+            <div class="reward-row"><span>代幣總計</span><span class="reward-val">🪙 <span x-text="tokens"></span></span></div>
+            <div class="reward-row" style="border:none;"><span>解鎖武器</span><span class="reward-val" x-text="unlockedWeapons.length + ' / ' + weapons.length + ' 種'"></span></div>
+          </div>
+          <div style="font-size:12px; color: var(--mil-khaki); margin-bottom: 16px;">感謝為中華民國國防貢獻心力！</div>
+          <div style="display:flex; gap:12px; justify-content:center;">
+            <button class="mil-btn" style="font-size:14px; padding:8px 20px;" @click="openGallery()" data-bs-toggle="modal" data-bs-target="#galleryModal">📖 裝備圖鑑</button>
+            <button class="mil-btn" style="font-size:14px; padding:8px 20px; border-color: var(--mil-gold); color: var(--mil-gold);" @click="restartAll()">↺ 重新訓練</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Bar -->
+    <div class="bottom-bar">
+      <select class="weapon-select" x-model="selectedWeaponId" @change="onWeaponChange()">
+        <template x-for="w in weapons" :key="w.id">
+          <option :value="w.id" :disabled="!isUnlocked(w.id)" x-text="(isUnlocked(w.id) ? '' : '🔒 ') + w.name"></option>
+        </template>
+      </select>
+      <div class="ammo-display">剩餘彈藥: <span style="color:var(--mil-gold);font-weight:bold;" x-text="ammoLeft"></span></div>
+      <div style="flex:1;"></div>
+      <button class="mil-btn" data-bs-toggle="modal" data-bs-target="#shopModal" @click="openShop()">🏪 商店</button>
+      <button class="mil-btn" data-bs-toggle="modal" data-bs-target="#galleryModal" @click="openGallery()">📖 圖鑑</button>
+      <button class="mil-btn danger" @click="retryLevel()">↺ 重試</button>
+    </div>
+  </div>
+
+  <!-- Shop Modal -->
+  <div class="modal fade" id="shopModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">🏪 武器商店 — 代幣餘額: 🪙 <span x-text="tokens" style="color:var(--mil-gold);"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row">
+            <template x-for="w in weapons" :key="w.id">
+              <div class="col-md-6">
+                <div class="weapon-card" :class="{ unlocked: isUnlocked(w.id), locked: !isUnlocked(w.id) }">
+                  <div class="wicon" x-text="w.icon"></div>
+                  <div class="wname" x-text="w.name"></div>
+                  <div class="wtype" x-text="w.type + ' · ' + w.origin"></div>
+                  <div class="wdesc" x-text="w.desc" style="display: -webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;"></div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+                    <span>爆炸半徑: <span style="color:var(--mil-gold);" x-text="w.specs.blastR"></span></span>
+                    <span x-show="isUnlocked(w.id)" class="unlocked-badge">✓ 已解鎖</span>
+                    <span x-show="!isUnlocked(w.id)">
+                      <button class="mil-btn" style="font-size:11px;"
+                        :disabled="tokens < w.unlockCost"
+                        @click="buyWeapon(w.id)"
+                        :style="tokens >= w.unlockCost ? 'border-color:var(--mil-gold);color:var(--mil-gold);' : 'opacity:0.5;'"
+                      >🪙 <span x-text="w.unlockCost"></span> 購買</button>
+                    </span>
+                  </div>
+                  <div class="blast-bar-bg" style="margin-top:8px;">
+                    <div class="blast-bar" :style="'width:' + Math.min(100, w.power/8*100) + '%'"></div>
+                  </div>
+                  <div style="font-size:10px; color:var(--mil-khaki); margin-top:2px;">威力指數: <span x-text="w.power.toFixed(1)"></span></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="mil-btn" data-bs-dismiss="modal">關閉</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gallery Modal -->
+  <div class="modal fade" id="galleryModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">📖 裝備圖鑑 — 解鎖進度: <span x-text="unlockedWeapons.length + '/' + weapons.length" style="color:var(--mil-gold);"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div style="font-size:12px; color:var(--mil-khaki); margin-bottom:16px; letter-spacing:2px;">▌ 中華民國國軍武器裝備資料庫</div>
+          <div class="row">
+            <template x-for="w in weapons" :key="w.id">
+              <div class="col-lg-4 col-md-6">
+                <div class="weapon-card" :class="{ locked: !isUnlocked(w.id) }">
+                  <template x-if="isUnlocked(w.id)">
+                    <div>
+                      <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
+                        <span style="font-size:36px;" x-text="w.icon"></span>
+                        <div>
+                          <div class="wname" x-text="w.name"></div>
+                          <div style="font-size:10px; color:var(--mil-khaki);" x-text="w.nameEn"></div>
+                        </div>
+                      </div>
+                      <div style="display:flex; gap:6px; margin-bottom:8px;">
+                        <span class="unlocked-badge" x-text="w.type"></span>
+                        <span style="background:rgba(0,0,0,0.3); border:1px solid #2a3a1a; padding:2px 8px; border-radius:3px; font-size:11px;" x-text="w.origin"></span>
+                      </div>
+                      <div class="wdesc" x-text="w.desc"></div>
+                      <table class="spec-table" style="margin-top:10px;">
+                        <template x-for="[k,v] in Object.entries(w.specs)" :key="k">
+                          <tr>
+                            <td x-text="specLabel(k)"></td>
+                            <td x-text="v"></td>
+                          </tr>
+                        </template>
+                        <tr><td>爆炸半徑(遊戲)</td><td x-text="w.blastRadius + 'px'"></td></tr>
+                        <tr><td>威力倍率</td><td x-text="w.power.toFixed(1) + 'x'"></td></tr>
+                      </table>
+                    </div>
+                  </template>
+                  <template x-if="!isUnlocked(w.id)">
+                    <div style="text-align:center; padding: 20px 0;">
+                      <div style="font-size:36px; filter:grayscale(1); opacity:0.4;">🔒</div>
+                      <div style="color:var(--mil-khaki); font-size:12px; margin-top:8px;">尚未解鎖</div>
+                      <div style="font-size:11px; color:#555; margin-top:4px;">至商店使用 🪙 <span x-text="w.unlockCost"></span> 解鎖</div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="mil-btn" data-bs-dismiss="modal">關閉</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end x-data -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ========= WEAPONS DATABASE =========
+const WEAPONS = [
+  {
+    id: 't75', name: 'T75手榴彈', nameEn: 'T75 Fragmentation Grenade',
+    type: '破片手榴彈', origin: '中華民國自製',
+    desc: '國軍現役標準破片手榴彈，採用延遲信管（3.5秒），鑄鐵破片彈體，殺傷半徑15公尺，為步兵基本近戰武器。',
+    specs: { weight: '430g', fuze: '延遲3.5秒', blastR: '15m', type: '攻防兩用' },
+    unlockCost: 0, projectileRadius: 8, blastRadius: 50, power: 1.0,
+    color: '#4a5e3a', trailColor: 'rgba(74,94,58,0.6)', fragCount: 20, icon: '💣'
+  },
+  {
+    id: 'm61', name: 'M61卵型手榴彈', nameEn: 'M61 Fragmentation Grenade',
+    type: '破片手榴彈', origin: '美國製',
+    desc: '美製卵型破片手榴彈，採用鋸齒鑄鐵彈體，延時引信4秒，有效殺傷半徑15公尺，為國軍補充裝備。',
+    specs: { weight: '397g', fuze: '延遲4秒', blastR: '15m', type: '攻防兩用' },
+    unlockCost: 200, projectileRadius: 9, blastRadius: 65, power: 1.3,
+    color: '#3a4a2a', trailColor: 'rgba(58,74,42,0.6)', fragCount: 30, icon: '💣'
+  },
+  {
+    id: 'mortar60', name: '60mm迫擊砲彈', nameEn: '60mm Mortar Round',
+    type: '迫擊砲彈藥', origin: '中華民國自製',
+    desc: '步兵連級60mm迫擊砲使用彈藥，最大射程3,490公尺，破片殺傷半徑30公尺，提供步兵有機砲兵火力支援。',
+    specs: { weight: '1.36kg', maxRange: '3,490m', blastR: '30m', type: '高爆殺傷' },
+    unlockCost: 500, projectileRadius: 10, blastRadius: 90, power: 2.0,
+    color: '#556644', trailColor: 'rgba(100,120,60,0.6)', fragCount: 50, icon: '🚀'
+  },
+  {
+    id: 'mortar81', name: '81mm迫擊砲彈', nameEn: '81mm Mortar Round',
+    type: '迫擊砲彈藥', origin: '中華民國自製',
+    desc: '步兵營級81mm迫擊砲使用彈藥，最大射程5,700公尺，殺傷半徑35公尺，是步兵營主要間接火力武器。',
+    specs: { weight: '4.5kg', maxRange: '5,700m', blastR: '35m', type: '高爆殺傷' },
+    unlockCost: 1000, projectileRadius: 11, blastRadius: 120, power: 3.0,
+    color: '#667755', trailColor: 'rgba(120,140,80,0.6)', fragCount: 80, icon: '🚀'
+  },
+  {
+    id: 'artillery105', name: '105mm榴彈砲彈', nameEn: '105mm Howitzer Shell',
+    type: '榴彈砲彈藥', origin: '美國製',
+    desc: 'M101A1 105mm榴彈砲使用彈藥，最大射程11公里，高爆彈對人員及輕裝甲目標有極大殺傷效果，為砲兵基本彈種。',
+    specs: { weight: '14.9kg', maxRange: '11km', blastR: '50m', type: '高爆榴彈' },
+    unlockCost: 2000, projectileRadius: 12, blastRadius: 160, power: 5.0,
+    color: '#889966', trailColor: 'rgba(160,180,100,0.6)', fragCount: 120, icon: '💥'
+  },
+  {
+    id: 'artillery155', name: '155mm榴彈砲彈', nameEn: '155mm Howitzer Shell',
+    type: '榴彈砲彈藥', origin: '美國製',
+    desc: 'M109A6帕拉丁自走砲使用彈藥，最大射程30公里（加裝增程藥），是砲兵部隊最強大的間接火力武器。',
+    specs: { weight: '43.5kg', maxRange: '30km（增程）', blastR: '80m', type: '高爆/增程' },
+    unlockCost: 4000, projectileRadius: 14, blastRadius: 220, power: 8.0,
+    color: '#aabb88', trailColor: 'rgba(200,220,160,0.6)', fragCount: 200, icon: '💥'
+  }
+];
+
+// ========= LEVEL GENERATOR =========
+function generateLevel(levelNum) {
+  const canvas = { w: 820, h: 480 };
+  const groundY = canvas.h - 80;
+  const targets = [];
+  const targetCount = 2 + levelNum;
+  const startX = 450;
+  const endX = 760;
+  const types = ['bunker','apc','tank'];
+  // weight: early levels more apc, later more tanks
+  const typeWeights = levelNum <= 3
+    ? ['apc','apc','bunker','bunker','tank']
+    : levelNum <= 6
+    ? ['apc','bunker','bunker','tank','tank']
+    : ['bunker','tank','tank','tank','apc'];
+
+  for (let i = 0; i < targetCount; i++) {
+    const type = typeWeights[Math.floor(Math.random() * typeWeights.length)];
+    const xSpread = endX - startX;
+    const x = startX + (xSpread / targetCount) * i + Math.random() * 30 - 15;
+    let w, h, hp;
+    if (type === 'bunker') { w=55; h=40; hp=3; }
+    else if (type === 'tank') { w=60; h=35; hp=5; }
+    else { w=50; h=28; hp=2; } // apc
+    targets.push({
+      x: Math.max(startX, Math.min(endX - w, x)),
+      y: groundY - h,
+      w, h, type, hp, maxHp: hp, destroyed: false,
+      hitFlash: 0
+    });
+  }
+  const totalHp = targets.reduce((sum, t) => sum + t.maxHp, 0);
+  const projectilesLeft = totalHp + 2;
+  return { targets, projectilesLeft };
+}
+
+// ========= MAIN APP =========
+function gameApp() {
+  return {
+    // Alpine state
+    gameState: 'intro', // intro | playing | levelComplete | gameOver | gameComplete
+    weapons: WEAPONS,
+    unlockedWeapons: ['t75'],
+    selectedWeaponId: 't75',
+    tokens: 0,
+    totalScore: 0,
+    currentLevel: 1,
+    maxLevel: 10,
+    ammoLeft: 0,
+    levelStats: { destroyed: 0, score: 0, tokensEarned: 0 },
+
+    // Canvas/physics (not reactive)
+    canvas: null,
+    ctx: null,
+    animFrame: null,
+
+    // Physics state
+    phys: {
+      projectile: { active: false, x: 0, y: 0, vx: 0, vy: 0, radius: 8, color: '#4a5e3a', trail: [] },
+      explosions: [],
+      particles: [],
+      floatingTexts: [],
+      targets: [],
+      isDragging: false,
+      dragStart: { x: 0, y: 0 },
+      dragCurrent: { x: 0, y: 0 },
+      launchPoint: { x: 120, y: 0 },
+      groundY: 400,
+      gravity: 0.3,
+      projectilesLeft: 7,
+      levelTokens: 0,
+      levelScore: 0,
+      levelDestroyed: 0,
+      canShoot: true,
+    },
+
+    init() {
+      this.canvas = document.getElementById('gameCanvas');
+      this.ctx = this.canvas.getContext('2d');
+      this.phys.groundY = this.canvas.height - 80;
+      this.phys.launchPoint = { x: 120, y: this.phys.groundY - 20 };
+      this.loop();
+    },
+
+    startGame() {
+      this.gameState = 'playing';
+      this.totalScore = 0;
+      this.tokens = 0;
+      this.unlockedWeapons = ['t75'];
+      this.selectedWeaponId = 't75';
+      this.currentLevel = 1;
+      this.loadLevel(1);
+    },
+
+    loadLevel(num) {
+      const lvl = generateLevel(num);
+      this.phys.targets = lvl.targets;
+      this.phys.projectilesLeft = lvl.projectilesLeft;
+      this.phys.projectile.active = false;
+      this.phys.explosions = [];
+      this.phys.particles = [];
+      this.phys.floatingTexts = [];
+      this.phys.isDragging = false;
+      this.phys.levelTokens = 0;
+      this.phys.levelScore = 0;
+      this.phys.levelDestroyed = 0;
+      this.phys.canShoot = true;
+      this.ammoLeft = lvl.projectilesLeft;
+    },
+
+    retryLevel() {
+      this.gameState = 'playing';
+      this.loadLevel(this.currentLevel);
+    },
+
+    nextLevel() {
+      if (this.currentLevel >= this.maxLevel) {
+        this.gameState = 'gameComplete';
+      } else {
+        this.currentLevel++;
+        this.gameState = 'playing';
+        this.loadLevel(this.currentLevel);
+      }
+    },
+
+    restartAll() {
+      this.gameState = 'intro';
+    },
+
+    isUnlocked(id) {
+      return this.unlockedWeapons.includes(id);
+    },
+
+    buyWeapon(id) {
+      const w = this.weapons.find(x => x.id === id);
+      if (!w || this.isUnlocked(id)) return;
+      if (this.tokens >= w.unlockCost) {
+        this.tokens -= w.unlockCost;
+        this.unlockedWeapons.push(id);
+      }
+    },
+
+    onWeaponChange() {
+      if (!this.isUnlocked(this.selectedWeaponId)) {
+        this.selectedWeaponId = this.unlockedWeapons[0];
+      }
+    },
+
+    openShop() {},
+    openGallery() {},
+
+    currentWeaponData() {
+      return WEAPONS.find(w => w.id === this.selectedWeaponId) || WEAPONS[0];
+    },
+
+    getRank() {
+      if (this.totalScore >= 8000) return 'S';
+      if (this.totalScore >= 5000) return 'A';
+      if (this.totalScore >= 2500) return 'B';
+      if (this.totalScore >= 1000) return 'C';
+      return 'D';
+    },
+
+    getFinalRank() {
+      const r = this.getRank();
+      const labels = { S: '砲兵之神', A: '精銳砲手', B: '合格射手', C: '訓練生', D: '新兵' };
+      return `${r} 級 — ${labels[r] || '新兵'}`;
+    },
+
+    specLabel(k) {
+      const map = { weight: '重量', fuze: '引信', blastR: '殺傷半徑', type: '彈種', maxRange: '最大射程' };
+      return map[k] || k;
+    },
+
+    // ========= INPUT HANDLERS =========
+    getCanvasPos(e) {
+      const rect = this.canvas.getBoundingClientRect();
+      const scaleX = this.canvas.width / rect.width;
+      const scaleY = this.canvas.height / rect.height;
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+    },
+
+    getTouchPos(e) {
+      const t = e.touches[0] || e.changedTouches[0];
+      return this.getCanvasPos({ clientX: t.clientX, clientY: t.clientY });
+    },
+
+    isNearLaunchPoint(pos) {
+      const lp = this.phys.launchPoint;
+      const dx = pos.x - lp.x;
+      const dy = pos.y - lp.y;
+      return Math.sqrt(dx*dx + dy*dy) < 60;
+    },
+
+    onMouseDown(e) {
+      if (this.gameState !== 'playing') return;
+      if (!this.phys.canShoot || this.phys.projectile.active) return;
+      const pos = this.getCanvasPos(e);
+      if (this.isNearLaunchPoint(pos)) {
+        this.phys.isDragging = true;
+        this.phys.dragStart = { ...this.phys.launchPoint };
+        this.phys.dragCurrent = { ...pos };
+      }
+    },
+
+    onMouseMove(e) {
+      if (!this.phys.isDragging) return;
+      const pos = this.getCanvasPos(e);
+      this.phys.dragCurrent = pos;
+    },
+
+    onMouseUp(e) {
+      if (!this.phys.isDragging) return;
+      this.phys.isDragging = false;
+      this.fire();
+    },
+
+    onMouseLeave(e) {
+      if (this.phys.isDragging) {
+        this.phys.isDragging = false;
+        this.fire();
+      }
+    },
+
+    onTouchStart(e) {
+      if (this.gameState !== 'playing') return;
+      if (!this.phys.canShoot || this.phys.projectile.active) return;
+      const pos = this.getTouchPos(e);
+      if (this.isNearLaunchPoint(pos)) {
+        this.phys.isDragging = true;
+        this.phys.dragStart = { ...this.phys.launchPoint };
+        this.phys.dragCurrent = { ...pos };
+      }
+    },
+
+    onTouchMove(e) {
+      if (!this.phys.isDragging) return;
+      this.phys.dragCurrent = this.getTouchPos(e);
+    },
+
+    onTouchEnd(e) {
+      if (!this.phys.isDragging) return;
+      this.phys.isDragging = false;
+      this.fire();
+    },
+
+    fire() {
+      const p = this.phys;
+      if (p.projectilesLeft <= 0) return;
+      const wep = this.currentWeaponData();
+      const dx = p.dragStart.x - p.dragCurrent.x;
+      const dy = p.dragStart.y - p.dragCurrent.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 5) return; // too small, ignore
+
+      p.projectilesLeft--;
+      this.ammoLeft = p.projectilesLeft;
+
+      p.projectile.active = true;
+      p.projectile.x = p.launchPoint.x;
+      p.projectile.y = p.launchPoint.y;
+      p.projectile.vx = dx * 0.25 * wep.power;
+      p.projectile.vy = dy * 0.25 * wep.power;
+      p.projectile.radius = wep.projectileRadius;
+      p.projectile.color = wep.color;
+      p.projectile.trailColor = wep.trailColor;
+      p.projectile.trail = [];
+      p.projectile.weaponId = wep.id;
+      p.canShoot = false;
+    },
+
+    explode(x, y) {
+      const wep = this.currentWeaponData();
+      // find the right weapon based on the projectile's weaponId
+      const pw = WEAPONS.find(w => w.id === this.phys.projectile.weaponId) || wep;
+
+      // Create explosion
+      this.phys.explosions.push({
+        x, y,
+        radius: 5,
+        maxRadius: pw.blastRadius,
+        alpha: 1,
+        shockwave: 0,
+        maxShockwave: pw.blastRadius * 1.5,
+        phase: 'expand' // expand -> fade
+      });
+
+      // Particles
+      for (let i = 0; i < pw.fragCount; i++) {
+        const angle = (Math.PI * 2 * i) / pw.fragCount + Math.random() * 0.3;
+        const speed = 2 + Math.random() * 6;
+        const colors = ['#ff8800','#ffcc00','#ff4400','#ffffff','#888888'];
+        this.phys.particles.push({
+          x, y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 2,
+          alpha: 1,
+          radius: 1.5 + Math.random() * 2,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          gravity: 0.15 + Math.random() * 0.1
+        });
+      }
+      // Smoke particles
+      for (let i = 0; i < 12; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 0.5 + Math.random() * 2;
+        this.phys.particles.push({
+          x, y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 1,
+          alpha: 0.7,
+          radius: 8 + Math.random() * 12,
+          color: '#666666',
+          gravity: -0.03,
+          isSmoke: true
+        });
+      }
+
+      // Check hits
+      let hitAny = false;
+      for (const t of this.phys.targets) {
+        if (t.destroyed) continue;
+        // circle vs rect
+        const cx = Math.max(t.x, Math.min(t.x + t.w, x));
+        const cy = Math.max(t.y, Math.min(t.y + t.h, y));
+        const dist = Math.sqrt((x-cx)**2 + (y-cy)**2);
+        if (dist <= pw.blastRadius) {
+          hitAny = true;
+          const dmg = Math.ceil(pw.power);
+          t.hp -= dmg;
+          t.hitFlash = 12;
+          if (t.hp <= 0) {
+            t.hp = 0;
+            t.destroyed = true;
+            let reward = 0, score = 0;
+            if (t.type === 'tank') { reward = 100; score = 300; }
+            else if (t.type === 'bunker') { reward = 50; score = 150; }
+            else { reward = 30; score = 80; }
+            this.tokens += reward;
+            this.totalScore += score;
+            this.phys.levelTokens += reward;
+            this.phys.levelScore += score;
+            this.phys.levelDestroyed++;
+            this.phys.floatingTexts.push({
+              x: t.x + t.w/2, y: t.y - 10,
+              text: `+${score}分 🪙${reward}`,
+              alpha: 1, vy: -1.5
+            });
+          } else {
+            const hitScore = 20;
+            this.totalScore += hitScore;
+            this.phys.levelScore += hitScore;
+            this.phys.floatingTexts.push({
+              x: t.x + t.w/2, y: t.y - 10,
+              text: `命中! +${hitScore}`,
+              alpha: 1, vy: -1.5, color: '#ffcc44'
+            });
+          }
+        }
+      }
+    },
+
+    checkLevelEnd() {
+      const p = this.phys;
+      const allDead = p.targets.every(t => t.destroyed);
+      if (allDead) {
+        // level complete bonus
+        const bonus = 200;
+        this.tokens += bonus;
+        this.totalScore += bonus;
+        p.levelTokens += bonus;
+        p.levelScore += bonus;
+        this.levelStats = {
+          destroyed: p.levelDestroyed,
+          score: p.levelScore,
+          tokensEarned: p.levelTokens
+        };
+        setTimeout(() => { this.gameState = 'levelComplete'; }, 1500);
+        return true;
+      }
+      if (!p.projectile.active && p.projectilesLeft <= 0 && p.canShoot === false) {
+        // Check if any explosions still active
+        if (p.explosions.length === 0 && p.particles.length === 0) {
+          this.levelStats = {
+            destroyed: p.levelDestroyed,
+            score: p.levelScore,
+            tokensEarned: p.levelTokens
+          };
+          setTimeout(() => {
+            if (this.gameState === 'playing') this.gameState = 'gameOver';
+          }, 1000);
+          return true;
+        }
+      }
+      return false;
+    },
+
+    // ========= DRAW FUNCTIONS =========
+    drawBackground(ctx) {
+      const W = this.canvas.width, H = this.canvas.height;
+      // Sky gradient
+      const sky = ctx.createLinearGradient(0, 0, 0, H * 0.7);
+      sky.addColorStop(0, '#0a1a28');
+      sky.addColorStop(0.5, '#1a2e40');
+      sky.addColorStop(1, '#2a4a30');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, W, H);
+
+      // Stars
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      const stars = [[50,30],[120,15],[200,45],[300,20],[500,35],[650,18],[750,40],[780,70],[30,80],[400,55]];
+      for (const [sx,sy] of stars) {
+        ctx.beginPath(); ctx.arc(sx, sy, 1, 0, Math.PI*2); ctx.fill();
+      }
+
+      // Mountains background
+      ctx.fillStyle = '#1a3020';
+      ctx.beginPath();
+      ctx.moveTo(0, H*0.55);
+      ctx.lineTo(60, H*0.40); ctx.lineTo(130, H*0.50);
+      ctx.lineTo(200, H*0.35); ctx.lineTo(280, H*0.48);
+      ctx.lineTo(360, H*0.38); ctx.lineTo(440, H*0.45);
+      ctx.lineTo(520, H*0.32); ctx.lineTo(600, H*0.42);
+      ctx.lineTo(680, H*0.37); ctx.lineTo(760, H*0.45);
+      ctx.lineTo(W, H*0.40); ctx.lineTo(W, H*0.7); ctx.lineTo(0, H*0.7);
+      ctx.closePath();
+      ctx.fill();
+
+      // Ground
+      const gY = this.phys.groundY;
+      const ground = ctx.createLinearGradient(0, gY, 0, H);
+      ground.addColorStop(0, '#2d4a1e');
+      ground.addColorStop(0.3, '#3a5e28');
+      ground.addColorStop(1, '#1a2e10');
+      ctx.fillStyle = ground;
+      ctx.fillRect(0, gY, W, H - gY);
+
+      // Ground texture lines
+      ctx.strokeStyle = 'rgba(60,90,30,0.3)';
+      ctx.lineWidth = 1;
+      for (let gx = 0; gx < W; gx += 30) {
+        ctx.beginPath();
+        ctx.moveTo(gx, gY);
+        ctx.lineTo(gx + 15, gY + 20 + Math.sin(gx*0.1)*5);
+        ctx.stroke();
+      }
+
+      // Ground edge highlight
+      ctx.strokeStyle = '#4a7c30';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, gY); ctx.lineTo(W, gY); ctx.stroke();
+    },
+
+    drawLauncher(ctx) {
+      const lp = this.phys.launchPoint;
+      const gY = this.phys.groundY;
+
+      // Launcher platform/sandbags
+      ctx.fillStyle = '#5a6b3a';
+      ctx.fillRect(lp.x - 50, gY - 18, 100, 18);
+      ctx.fillStyle = '#6b7d4a';
+      ctx.fillRect(lp.x - 45, gY - 14, 90, 14);
+
+      // Sandbag texture
+      ctx.fillStyle = '#7a8e5a';
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        ctx.ellipse(lp.x - 30 + i*16, gY - 7, 9, 7, 0, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      // Launcher tube (mortar style)
+      const tubeAngle = -Math.PI / 3; // 60 degrees up-left
+      const tubeLen = 45;
+      const baseX = lp.x + 5, baseY = lp.y - 18;
+
+      // Base plate
+      ctx.fillStyle = '#3a4a2a';
+      ctx.fillRect(baseX - 18, baseY, 36, 8);
+
+      // Bipod legs
+      ctx.strokeStyle = '#4a5e3a';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY);
+      ctx.lineTo(baseX - 20, baseY + 20);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY);
+      ctx.lineTo(baseX + 10, baseY + 20);
+      ctx.stroke();
+
+      // Tube
+      const tubeEndX = baseX + Math.cos(tubeAngle) * tubeLen;
+      const tubeEndY = baseY + Math.sin(tubeAngle) * tubeLen;
+      ctx.strokeStyle = '#5a6e44';
+      ctx.lineWidth = 8;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY);
+      ctx.lineTo(tubeEndX, tubeEndY);
+      ctx.stroke();
+      // Tube highlight
+      ctx.strokeStyle = '#6a8050';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(baseX - 2, baseY);
+      ctx.lineTo(tubeEndX - 2, tubeEndY);
+      ctx.stroke();
+
+      // Muzzle
+      ctx.fillStyle = '#333';
+      ctx.beginPath();
+      ctx.arc(tubeEndX, tubeEndY, 5, 0, Math.PI*2);
+      ctx.fill();
+
+      // Soldier figure (simplified)
+      const sx = lp.x - 25, sy = gY - 18;
+      // Body
+      ctx.fillStyle = '#4a5e3a'; // uniform
+      ctx.fillRect(sx - 8, sy - 28, 16, 22);
+      // Head with helmet
+      ctx.fillStyle = '#3a4a2a';
+      ctx.beginPath();
+      ctx.arc(sx, sy - 34, 9, 0, Math.PI*2);
+      ctx.fill();
+      // Helmet brim
+      ctx.fillRect(sx - 11, sy - 37, 22, 4);
+      // Arms
+      ctx.fillStyle = '#4a5e3a';
+      ctx.fillRect(sx - 16, sy - 26, 8, 16);
+      ctx.fillRect(sx + 8, sy - 26, 8, 16);
+      // Legs
+      ctx.fillRect(sx - 7, sy - 6, 6, 12);
+      ctx.fillRect(sx + 1, sy - 6, 6, 12);
+
+      // Drag indicator circle
+      ctx.strokeStyle = 'rgba(200,168,75,0.4)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4,4]);
+      ctx.beginPath();
+      ctx.arc(lp.x, lp.y, 55, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(200,168,75,0.15)';
+      ctx.beginPath();
+      ctx.arc(lp.x, lp.y, 55, 0, Math.PI*2);
+      ctx.fill();
+
+      // Touch/drag hint text
+      if (!this.phys.isDragging && !this.phys.projectile.active && this.phys.canShoot === true && this.phys.projectilesLeft > 0) {
+        ctx.fillStyle = 'rgba(200,168,75,0.7)';
+        ctx.font = '11px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('← 向後拖曳瞄準', lp.x, lp.y + 72);
+      }
+    },
+
+    drawDragLine(ctx) {
+      const p = this.phys;
+      if (!p.isDragging) return;
+      const lp = p.launchPoint;
+      const dc = p.dragCurrent;
+
+      const dx = lp.x - dc.x;
+      const dy = lp.y - dc.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const power = Math.min(dist / 100, 1);
+
+      // Rubber band lines
+      ctx.strokeStyle = `rgba(200, 140, 40, 0.8)`;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(lp.x - 8, lp.y);
+      ctx.quadraticCurveTo(dc.x, dc.y - 10, dc.x, dc.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(lp.x + 8, lp.y);
+      ctx.quadraticCurveTo(dc.x, dc.y + 10, dc.x, dc.y);
+      ctx.stroke();
+
+      // Power bar
+      const barW = 100, barH = 8;
+      const barX = lp.x - barW/2, barY = this.phys.groundY + 10;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(barX, barY, barW, barH);
+      const barColor = power < 0.4 ? '#4a7c30' : power < 0.7 ? '#c8a84b' : '#cc4444';
+      ctx.fillStyle = barColor;
+      ctx.fillRect(barX, barY, barW * power, barH);
+      ctx.strokeStyle = '#6a8060';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(barX, barY, barW, barH);
+      ctx.fillStyle = '#c8d4a8';
+      ctx.font = '10px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillText(`力道 ${Math.round(power*100)}%`, lp.x, barY + barH + 12);
+
+      // Trajectory preview dots
+      const wep = this.currentWeaponData();
+      const vx0 = dx * 0.25 * wep.power;
+      const vy0 = dy * 0.25 * wep.power;
+      let tx = lp.x, ty = lp.y, tvx = vx0, tvy = vy0;
+      ctx.fillStyle = 'rgba(200, 168, 75, 0.5)';
+      for (let step = 0; step < 60; step++) {
+        tx += tvx; ty += tvy; tvy += p.gravity;
+        if (step % 4 === 0) {
+          ctx.beginPath();
+          const r = Math.max(1, 4 - step * 0.05);
+          ctx.arc(tx, ty, r, 0, Math.PI*2);
+          ctx.fill();
+        }
+        if (ty >= p.groundY || tx > this.canvas.width) break;
+      }
+
+      // Pull indicator at drag point
+      ctx.fillStyle = '#c8a84b';
+      ctx.beginPath();
+      ctx.arc(dc.x, dc.y, 7, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    },
+
+    drawProjectile(ctx) {
+      const proj = this.phys.projectile;
+      if (!proj.active) return;
+
+      // Trail
+      for (let i = 0; i < proj.trail.length; i++) {
+        const t = proj.trail[i];
+        const a = (i / proj.trail.length) * 0.6;
+        ctx.fillStyle = `rgba(200, 140, 60, ${a})`;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, proj.radius * (i / proj.trail.length) * 0.8, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      // Smoke trail
+      for (let i = proj.trail.length - 1; i >= 0; i -= 2) {
+        const t = proj.trail[i];
+        const a = ((i / proj.trail.length) * 0.3);
+        ctx.fillStyle = `rgba(120,120,120,${a})`;
+        const sr = (proj.trail.length - i) * 0.3;
+        ctx.beginPath();
+        ctx.arc(t.x + Math.random()*2, t.y + Math.random()*2, sr, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      // Projectile body
+      const grad = ctx.createRadialGradient(proj.x - 2, proj.y - 2, 1, proj.x, proj.y, proj.radius);
+      grad.addColorStop(0, '#c8d4a8');
+      grad.addColorStop(0.4, proj.color);
+      grad.addColorStop(1, '#1a2010');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(proj.x, proj.y, proj.radius, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,200,0.3)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    },
+
+    drawExplosions(ctx) {
+      for (const exp of this.phys.explosions) {
+        // Shockwave ring
+        if (exp.shockwave < exp.maxShockwave) {
+          ctx.strokeStyle = `rgba(255,200,100,${0.6 * (1 - exp.shockwave/exp.maxShockwave)})`;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(exp.x, exp.y, exp.shockwave, 0, Math.PI*2);
+          ctx.stroke();
+        }
+
+        // Core glow
+        const grad = ctx.createRadialGradient(exp.x, exp.y, 0, exp.x, exp.y, exp.radius);
+        grad.addColorStop(0, `rgba(255,255,200,${exp.alpha})`);
+        grad.addColorStop(0.2, `rgba(255,180,30,${exp.alpha * 0.9})`);
+        grad.addColorStop(0.6, `rgba(220,80,20,${exp.alpha * 0.6})`);
+        grad.addColorStop(1, `rgba(100,40,10,0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI*2);
+        ctx.fill();
+      }
+    },
+
+    drawParticles(ctx) {
+      for (const p of this.phys.particles) {
+        if (p.isSmoke) {
+          ctx.fillStyle = `rgba(100,100,100,${p.alpha * 0.3})`;
+        } else {
+          ctx.fillStyle = p.color.replace(')', `,${p.alpha})`).replace('rgb','rgba');
+          if (!p.color.includes('rgb')) {
+            // hex color
+            ctx.globalAlpha = p.alpha;
+            ctx.fillStyle = p.color;
+          }
+        }
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    },
+
+    drawTarget(ctx, t) {
+      if (t.destroyed) {
+        // Rubble
+        ctx.fillStyle = 'rgba(100,80,60,0.6)';
+        ctx.fillRect(t.x + 5, t.y + t.h - 12, t.w - 10, 12);
+        ctx.fillStyle = '#5a4a3a';
+        for (let i = 0; i < 6; i++) {
+          ctx.fillRect(t.x + i*(t.w/6), t.y + t.h - 8 + Math.random()*4, 8, 6);
+        }
+        // Smoke
+        ctx.fillStyle = 'rgba(80,80,80,0.2)';
+        ctx.beginPath();
+        ctx.arc(t.x + t.w/2, t.y + t.h - 15, 15, 0, Math.PI*2);
+        ctx.fill();
+        return;
+      }
+
+      // Hit flash effect
+      const flash = t.hitFlash > 0;
+      ctx.save();
+
+      if (t.type === 'bunker') {
+        // Bunker body
+        ctx.fillStyle = flash ? '#cc8844' : '#6b7b5a';
+        ctx.fillRect(t.x, t.y, t.w, t.h);
+        // Roof slope
+        ctx.fillStyle = flash ? '#bb7733' : '#5a6b4a';
+        ctx.beginPath();
+        ctx.moveTo(t.x - 5, t.y);
+        ctx.lineTo(t.x + t.w + 5, t.y);
+        ctx.lineTo(t.x + t.w, t.y - 8);
+        ctx.lineTo(t.x, t.y - 8);
+        ctx.closePath();
+        ctx.fill();
+        // Embrasures/windows
+        ctx.fillStyle = flash ? '#ffcc88' : '#1a1a1a';
+        ctx.fillRect(t.x + 8, t.y + 8, 12, 8);
+        ctx.fillRect(t.x + t.w - 20, t.y + 8, 12, 8);
+        // Door
+        ctx.fillStyle = flash ? '#ffaa66' : '#2a1a0a';
+        ctx.fillRect(t.x + t.w/2 - 8, t.y + t.h - 18, 16, 18);
+        // Sandbags at base
+        ctx.fillStyle = flash ? '#ddbb88' : '#7a6a4a';
+        for (let i = 0; i < 4; i++) {
+          ctx.beginPath();
+          ctx.ellipse(t.x + 8 + i*13, t.y + t.h + 3, 8, 6, 0, 0, Math.PI*2);
+          ctx.fill();
+        }
+        // HP indicator
+        this.drawHP(ctx, t);
+
+      } else if (t.type === 'tank') {
+        // Tank body
+        ctx.fillStyle = flash ? '#cc9944' : '#5a6b3a';
+        ctx.fillRect(t.x + 5, t.y + 10, t.w - 10, t.h - 12);
+        // Hull lower
+        ctx.fillStyle = flash ? '#bb8833' : '#4a5a2a';
+        ctx.fillRect(t.x, t.y + 18, t.w, t.h - 18);
+        // Turret
+        ctx.fillStyle = flash ? '#dd9944' : '#6a7b4a';
+        ctx.beginPath();
+        ctx.ellipse(t.x + t.w*0.4, t.y + 14, 18, 12, 0, 0, Math.PI*2);
+        ctx.fill();
+        // Gun barrel
+        ctx.strokeStyle = flash ? '#ffcc88' : '#3a4a2a';
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(t.x + t.w*0.4, t.y + 12);
+        ctx.lineTo(t.x + t.w + 15, t.y + 8);
+        ctx.stroke();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#2a3a1a';
+        ctx.beginPath();
+        ctx.moveTo(t.x + t.w*0.4, t.y + 12);
+        ctx.lineTo(t.x + t.w + 15, t.y + 8);
+        ctx.stroke();
+        // Tracks
+        ctx.fillStyle = flash ? '#998844' : '#2a2a1a';
+        ctx.fillRect(t.x, t.y + t.h - 10, t.w, 10);
+        ctx.fillStyle = '#3a3a2a';
+        for (let i = 0; i < 7; i++) {
+          ctx.fillRect(t.x + i*(t.w/7), t.y + t.h - 10, 6, 10);
+        }
+        // Vision ports
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(t.x + t.w*0.4 - 6, t.y + 10, 5, 4);
+        // Antenna
+        ctx.strokeStyle = '#8a9a6a';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(t.x + t.w*0.65, t.y + 8);
+        ctx.lineTo(t.x + t.w*0.65 + 5, t.y - 18);
+        ctx.stroke();
+        this.drawHP(ctx, t);
+
+      } else { // APC
+        // APC body
+        ctx.fillStyle = flash ? '#cc8844' : '#5a6a3a';
+        ctx.fillRect(t.x, t.y + 5, t.w, t.h - 8);
+        // Front slope
+        ctx.fillStyle = flash ? '#bb7733' : '#4a5a2a';
+        ctx.beginPath();
+        ctx.moveTo(t.x, t.y + 5);
+        ctx.lineTo(t.x + 12, t.y);
+        ctx.lineTo(t.x + t.w, t.y);
+        ctx.lineTo(t.x + t.w, t.y + 5);
+        ctx.closePath();
+        ctx.fill();
+        // Hatches
+        ctx.fillStyle = flash ? '#ddaa66' : '#4a5e3a';
+        ctx.fillRect(t.x + t.w*0.3, t.y, 14, 8);
+        ctx.fillRect(t.x + t.w*0.6, t.y, 10, 6);
+        // Machine gun
+        ctx.fillStyle = flash ? '#eebb88' : '#3a3a2a';
+        ctx.fillRect(t.x + t.w*0.3 + 5, t.y - 8, 4, 10);
+        ctx.fillRect(t.x + t.w*0.3 + 3, t.y - 12, 18, 3);
+        // Windows/ports
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(t.x + 6, t.y + 10, 8, 5);
+        ctx.fillRect(t.x + t.w - 14, t.y + 10, 8, 5);
+        // Wheels/tracks
+        ctx.fillStyle = flash ? '#998844' : '#1a1a1a';
+        ctx.fillRect(t.x, t.y + t.h - 8, t.w, 8);
+        for (let i = 0; i < 4; i++) {
+          ctx.beginPath();
+          ctx.arc(t.x + 8 + i*(t.w-16)/3, t.y + t.h - 2, 6, 0, Math.PI*2);
+          ctx.fill();
+          ctx.strokeStyle = '#3a3a2a';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+        this.drawHP(ctx, t);
+      }
+      ctx.restore();
+    },
+
+    drawHP(ctx, t) {
+      const barW = t.w;
+      const barH = 5;
+      const barX = t.x;
+      const barY = t.y - 12;
+      // BG
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(barX, barY, barW, barH);
+      // HP bar
+      const pct = t.hp / t.maxHp;
+      const hpColor = pct > 0.6 ? '#4a9c30' : pct > 0.3 ? '#c8a84b' : '#cc3030';
+      ctx.fillStyle = hpColor;
+      ctx.fillRect(barX, barY, barW * pct, barH);
+      ctx.strokeStyle = '#4a6a3a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(barX, barY, barW, barH);
+      // HP text
+      ctx.fillStyle = '#fff';
+      ctx.font = '9px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${t.hp}/${t.maxHp}`, barX + barW/2, barY - 2);
+    },
+
+    drawFloatingTexts(ctx) {
+      for (const ft of this.phys.floatingTexts) {
+        ctx.save();
+        ctx.globalAlpha = ft.alpha;
+        ctx.font = 'bold 13px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = ft.color || '#ffcc44';
+        ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+        ctx.lineWidth = 3;
+        ctx.strokeText(ft.text, ft.x, ft.y);
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.restore();
+      }
+    },
+
+    drawHUD(ctx) {
+      const p = this.phys;
+      const W = this.canvas.width;
+      // Ammo icons
+      const wep = this.currentWeaponData();
+      ctx.fillStyle = 'rgba(200,168,75,0.8)';
+      ctx.font = '11px Courier New';
+      ctx.textAlign = 'left';
+      ctx.fillText('彈藥:', 10, 20);
+      for (let i = 0; i < Math.min(p.projectilesLeft, 12); i++) {
+        ctx.fillStyle = i < p.projectilesLeft ? '#c8a84b' : '#3a3a2a';
+        ctx.fillRect(55 + i * 14, 10, 10, 14);
+      }
+
+      // Weapon info
+      ctx.fillStyle = 'rgba(100,160,80,0.8)';
+      ctx.font = '11px Courier New';
+      ctx.textAlign = 'right';
+      ctx.fillText(wep.name, W - 10, 20);
+    },
+
+    // ========= PHYSICS UPDATE =========
+    update() {
+      if (this.gameState !== 'playing') return;
+      const p = this.phys;
+
+      // Update projectile
+      if (p.projectile.active) {
+        p.projectile.trail.push({ x: p.projectile.x, y: p.projectile.y });
+        if (p.projectile.trail.length > 20) p.projectile.trail.shift();
+
+        p.projectile.x += p.projectile.vx;
+        p.projectile.y += p.projectile.vy;
+        p.projectile.vy += p.gravity;
+
+        // Ground hit
+        if (p.projectile.y >= p.groundY - p.projectile.radius) {
+          const ex = p.projectile.x, ey = p.groundY;
+          p.projectile.active = false;
+          this.explode(ex, ey);
+          p.canShoot = true;
+          this.checkLevelEnd();
+        }
+
+        // Out of bounds
+        if (p.projectile.x > this.canvas.width + 50 || p.projectile.x < -50 || p.projectile.y < -200) {
+          p.projectile.active = false;
+          p.canShoot = true;
+          this.checkLevelEnd();
+        }
+
+        // Target collision (early hit)
+        for (const t of p.targets) {
+          if (t.destroyed) continue;
+          const cx = Math.max(t.x, Math.min(t.x+t.w, p.projectile.x));
+          const cy = Math.max(t.y, Math.min(t.y+t.h, p.projectile.y));
+          const dist = Math.sqrt((p.projectile.x-cx)**2 + (p.projectile.y-cy)**2);
+          if (dist <= p.projectile.radius) {
+            const ex = p.projectile.x, ey = p.projectile.y;
+            p.projectile.active = false;
+            this.explode(ex, ey);
+            p.canShoot = true;
+            this.checkLevelEnd();
+            break;
+          }
+        }
+      }
+
+      // Update explosions
+      for (const exp of p.explosions) {
+        exp.shockwave += 6;
+        if (exp.radius < exp.maxRadius) {
+          exp.radius += exp.maxRadius * 0.08;
+        } else {
+          exp.alpha -= 0.04;
+        }
+      }
+      p.explosions = p.explosions.filter(e => e.alpha > 0);
+
+      // Update particles
+      for (const pt of p.particles) {
+        pt.x += pt.vx;
+        pt.y += pt.vy;
+        pt.vy += pt.gravity;
+        if (pt.isSmoke) {
+          pt.alpha -= 0.012;
+          pt.radius *= 1.02;
+          pt.vx *= 0.98;
+          pt.vy *= 0.98;
+        } else {
+          pt.alpha -= 0.025;
+          pt.vx *= 0.97;
+          if (pt.y > p.groundY) { pt.vy *= -0.3; pt.y = p.groundY; }
+        }
+      }
+      p.particles = p.particles.filter(pt => pt.alpha > 0);
+
+      // Update floating texts
+      for (const ft of p.floatingTexts) {
+        ft.y += ft.vy;
+        ft.alpha -= 0.02;
+      }
+      p.floatingTexts = p.floatingTexts.filter(ft => ft.alpha > 0);
+
+      // Update hit flash
+      for (const t of p.targets) {
+        if (t.hitFlash > 0) t.hitFlash--;
+      }
+    },
+
+    // ========= MAIN DRAW =========
+    draw() {
+      const ctx = this.ctx;
+      const W = this.canvas.width, H = this.canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      this.drawBackground(ctx);
+      this.drawLauncher(ctx);
+      this.drawDragLine(ctx);
+
+      // Draw targets
+      for (const t of this.phys.targets) {
+        this.drawTarget(ctx, t);
+      }
+
+      this.drawExplosions(ctx);
+      this.drawParticles(ctx);
+      this.drawProjectile(ctx);
+      this.drawFloatingTexts(ctx);
+      this.drawHUD(ctx);
+
+      // Battlefield divider
+      ctx.strokeStyle = 'rgba(200,168,75,0.1)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([8,8]);
+      ctx.beginPath();
+      ctx.moveTo(380, 0);
+      ctx.lineTo(380, this.phys.groundY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    },
+
+    loop() {
+      this.update();
+      this.draw();
+      this.animFrame = requestAnimationFrame(() => this.loop());
+    }
+  };
+}
+</script>
+</body>
+</html>

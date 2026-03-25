@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>眼力大考驗 - 國軍武器識別</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+  body { background:#0a1208; color:#c8d8c0; font-family:system-ui,sans-serif; min-height:100vh; }
+  .military-header { background:linear-gradient(135deg,#0d1f0a,#1a3015); border-bottom:2px solid #4a7c3f; }
+  .military-card { background:#0d1f0a; border:1px solid #2a4a20; }
+  .canvas-wrapper { position:relative; display:inline-block; cursor:crosshair; }
+  canvas { display:block; border:2px solid #3a6a30; border-radius:4px; }
+  canvas:hover { border-color:#6aad5f; }
+  .spot-item { cursor:pointer; padding:6px 10px; border-radius:4px; border:1px solid #2a4a20; margin-bottom:6px; transition:all .2s; }
+  .spot-item:hover { background:#1a3015; border-color:#4a7c3f; }
+  .spot-item.found { background:#0a2a10; border-color:#2a8a30; color:#6aad5f; }
+  .spot-item .spot-num { display:inline-block; width:22px; height:22px; border-radius:50%; text-align:center; line-height:22px; font-size:12px; font-weight:bold; background:#2a4a20; margin-right:6px; }
+  .spot-item.found .spot-num { background:#2a8a30; }
+  .hint-box { background:#1a3015; border:1px solid #4a7c3f; border-radius:4px; padding:8px; font-size:13px; color:#a0c890; margin-top:6px; }
+  .level-complete-overlay { position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:1000; display:flex; align-items:center; justify-content:center; }
+  .complete-card { background:linear-gradient(135deg,#0d2a08,#1a4015); border:2px solid #4a7c3f; border-radius:12px; padding:40px; text-align:center; max-width:480px; animation:slideIn .4s ease; }
+  @keyframes slideIn { from{transform:translateY(-40px);opacity:0} to{transform:translateY(0);opacity:1} }
+  .score-big { font-size:64px; font-weight:bold; color:#6aad5f; line-height:1; }
+  .rank-badge { font-size:80px; font-weight:bold; line-height:1; }
+  .rank-S { color:#ffd700; } .rank-A { color:#6aad5f; } .rank-B { color:#4a8abf; } .rank-C { color:#8a8a8a; }
+  .btn-military { background:#2a5a20; border:1px solid #4a7c3f; color:#c8d8c0; }
+  .btn-military:hover { background:#3a7a2a; color:#fff; }
+  .btn-hint { background:#2a3a5a; border:1px solid #3a5a8a; color:#c8d8c0; }
+  .btn-hint:hover { background:#3a4a7a; color:#fff; }
+  .wrong-flash { animation:wrongFlash .3s ease; }
+  @keyframes wrongFlash { 0%,100%{background:#0d1f0a} 50%{background:#3a0a0a} }
+  .weapon-info { background:#0a1a08; border:1px solid #2a4a20; border-radius:0 0 4px 4px; padding:10px; font-size:12px; }
+  .weapon-info h6 { color:#6aad5f; margin-bottom:4px; font-size:14px; }
+  .weapon-info .type-badge { background:#1a3a10; border:1px solid #3a6a20; color:#8ac870; border-radius:3px; padding:1px 6px; font-size:11px; }
+  .specs-text { color:#7a9870; font-size:11px; margin-top:4px; }
+  #lobby { background:#0a1208; }
+  .lobby-title { font-size:3rem; font-weight:bold; color:#6aad5f; text-shadow:0 0 20px rgba(106,173,95,.4); }
+  .lobby-sub { color:#4a7c3f; font-size:1.1rem; }
+  .progress-bar-military { height:6px; background:#4a7c3f; border-radius:3px; }
+  .progress-track { background:#1a3015; border-radius:3px; height:6px; overflow:hidden; }
+</style>
+</head>
+<body>
+
+<!-- LOBBY -->
+<div id="lobby" x-data="lobbyData()" x-show="visible" class="d-flex flex-column align-items-center justify-content-center min-vh-100 p-4">
+  <div class="text-center mb-5">
+    <div style="font-size:4rem; margin-bottom:8px;">🎯</div>
+    <div class="lobby-title">眼力大考驗</div>
+    <div class="lobby-sub mt-2">國軍武器裝備識別挑戰</div>
+    <div class="mt-3 text-muted small">訓練您對中華民國現役武器裝備的識別能力</div>
+  </div>
+  <div class="military-card rounded-3 p-4 mb-4" style="max-width:480px;width:100%">
+    <h5 class="text-center mb-3" style="color:#6aad5f">遊戲說明</h5>
+    <ul style="color:#a0c890; line-height:2">
+      <li>每關展示兩種武器裝備圖鑑</li>
+      <li>找出 <strong style="color:#6aad5f">5個隱藏特徵</strong> 並點擊正確位置</li>
+      <li>點擊正確 → 綠色圓圈標記</li>
+      <li>點擊錯誤 → 扣 50 分（最低 100 分）</li>
+      <li>共 30 關，挑戰最高分！</li>
+    </ul>
+    <div class="mt-3 p-3 rounded" style="background:#0a1a08; border:1px solid #2a4a20">
+      <div class="d-flex justify-content-between text-center">
+        <div><div style="color:#6aad5f; font-size:1.4rem; font-weight:bold">30</div><div class="small text-muted">關卡</div></div>
+        <div><div style="color:#6aad5f; font-size:1.4rem; font-weight:bold">8</div><div class="small text-muted">武器種類</div></div>
+        <div><div style="color:#6aad5f; font-size:1.4rem; font-weight:bold">1000</div><div class="small text-muted">每關滿分</div></div>
+      </div>
+    </div>
+  </div>
+  <button class="btn btn-military btn-lg px-5 py-3 rounded-3" style="font-size:1.2rem" @click="startGame()">
+    開始挑戰
+  </button>
+</div>
+
+<!-- GAME -->
+<div id="gameApp" x-data="gameData()" x-show="started" x-cloak>
+
+  <!-- Header -->
+  <div class="military-header py-2 px-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <button class="btn btn-sm btn-military" @click="backToLobby()">← 返回</button>
+      <div class="text-center">
+        <span style="color:#6aad5f; font-weight:bold; font-size:1.1rem">眼力大考驗</span>
+        <span class="text-muted ms-2 small">國軍武器識別</span>
+      </div>
+      <div class="d-flex gap-3 align-items-center">
+        <div class="text-center">
+          <div class="small text-muted">關卡</div>
+          <div style="color:#c8d8c0; font-weight:bold" x-text="currentLevel+1 + '/30'"></div>
+        </div>
+        <div class="text-center">
+          <div class="small text-muted">總分</div>
+          <div style="color:#6aad5f; font-weight:bold; font-size:1.1rem" x-text="totalScore"></div>
+        </div>
+      </div>
+    </div>
+    <div class="progress-track mt-2">
+      <div class="progress-bar-military" :style="{width: ((currentLevel)/30*100)+'%'}"></div>
+    </div>
+  </div>
+
+  <!-- Main game area -->
+  <div class="container-fluid px-2 py-3" x-show="!levelComplete && !gameComplete">
+    <div class="row g-2">
+
+      <!-- Left weapon panel -->
+      <div class="col-12 col-xl-5">
+        <div class="military-card rounded-3 overflow-hidden">
+          <div class="text-center p-1 small" style="background:#1a3015; color:#8ac870" x-text="level && level.left ? level.left.name : ''"></div>
+          <div class="canvas-wrapper" style="width:100%" @click="handleCanvasClick($event,'left')">
+            <canvas id="canvasLeft" width="400" height="280" style="width:100%; height:auto"></canvas>
+            <canvas id="overlayLeft" width="400" height="280" style="position:absolute;top:0;left:0;width:100%;height:auto;pointer-events:none"></canvas>
+          </div>
+          <div class="weapon-info" x-show="level && level.left">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <h6 class="mb-0" x-text="level && level.left ? level.left.name : ''"></h6>
+              <span class="type-badge" x-text="level && level.left ? level.left.type : ''"></span>
+            </div>
+            <div style="color:#8ab880; font-size:12px" x-text="level && level.left ? level.left.desc : ''"></div>
+            <div class="specs-text" x-text="level && level.left ? level.left.specs : ''"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Spots sidebar -->
+      <div class="col-12 col-xl-2">
+        <div class="military-card rounded-3 p-2 h-100">
+          <div class="text-center mb-2" style="color:#6aad5f; font-weight:bold; font-size:13px">找出以下特徵：</div>
+          <template x-for="(spot, i) in (level ? level.spots : [])" :key="i">
+            <div class="spot-item" :class="{found: spot.found}" @click="showHint(i)">
+              <span class="spot-num" x-text="i+1"></span>
+              <span x-show="spot.found" style="color:#4aaa50; margin-right:4px">✓</span>
+              <span x-show="!spot.found" style="color:#4a6a40; margin-right:4px">○</span>
+              <span style="font-size:12px">
+                <span style="color:#6a9a60; font-size:11px" x-text="spot.canvas==='left'?(level&&level.left?level.left.name:''):(level&&level.right?level.right.name:'')"></span>
+                <br>
+                <span x-text="spot.label"></span>
+              </span>
+            </div>
+          </template>
+          <div x-show="activeHint !== null && level" class="hint-box mt-2">
+            <div class="small fw-bold mb-1" style="color:#6aad5f">提示：</div>
+            <div x-text="level && activeHint !== null ? level.spots[activeHint].hint : ''"></div>
+          </div>
+          <hr style="border-color:#2a4a20">
+          <div class="text-center">
+            <div class="small text-muted mb-1">錯誤點擊</div>
+            <div style="color:#e06060; font-weight:bold; font-size:1.2rem" x-text="wrongClicks"></div>
+          </div>
+          <div class="mt-2 text-center">
+            <div class="small text-muted mb-1">扣分</div>
+            <div style="color:#e08060; font-size:1rem" x-text="'-' + (wrongClicks * 50)"></div>
+          </div>
+          <div class="mt-3">
+            <button class="btn btn-hint btn-sm w-100" @click="useHint()" :disabled="hintsLeft===0">
+              💡 提示 (<span x-text="hintsLeft"></span>)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right weapon panel -->
+      <div class="col-12 col-xl-5">
+        <div class="military-card rounded-3 overflow-hidden">
+          <div class="text-center p-1 small" style="background:#1a3015; color:#8ac870" x-text="level && level.right ? level.right.name : ''"></div>
+          <div class="canvas-wrapper" style="width:100%" @click="handleCanvasClick($event,'right')">
+            <canvas id="canvasRight" width="400" height="280" style="width:100%; height:auto"></canvas>
+            <canvas id="overlayRight" width="400" height="280" style="position:absolute;top:0;left:0;width:100%;height:auto;pointer-events:none"></canvas>
+          </div>
+          <div class="weapon-info" x-show="level && level.right">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <h6 class="mb-0" x-text="level && level.right ? level.right.name : ''"></h6>
+              <span class="type-badge" x-text="level && level.right ? level.right.type : ''"></span>
+            </div>
+            <div style="color:#8ab880; font-size:12px" x-text="level && level.right ? level.right.desc : ''"></div>
+            <div class="specs-text" x-text="level && level.right ? level.right.specs : ''"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Level Complete Overlay -->
+  <div class="level-complete-overlay" x-show="levelComplete && !gameComplete">
+    <div class="complete-card">
+      <div style="color:#6aad5f; font-size:1.2rem; margin-bottom:8px">關卡完成！</div>
+      <div class="score-big" x-text="levelScore"></div>
+      <div class="small text-muted mt-1">本關得分</div>
+      <div class="mt-3 p-3 rounded" style="background:#0a1a08; border:1px solid #2a4a20">
+        <div class="d-flex justify-content-around">
+          <div class="text-center">
+            <div style="color:#e06060" x-text="wrongClicks + ' 次'"></div>
+            <div class="small text-muted">錯誤點擊</div>
+          </div>
+          <div class="text-center">
+            <div style="color:#6aad5f" x-text="totalScore + ' 分'"></div>
+            <div class="small text-muted">累計總分</div>
+          </div>
+        </div>
+      </div>
+      <div class="mt-3 text-muted small" x-text="'第 ' + (currentLevel+1) + ' / 30 關'"></div>
+      <button class="btn btn-military btn-lg mt-3 px-5" @click="nextLevel()">
+        <span x-text="currentLevel < 29 ? '下一關 →' : '查看成績'"></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Game Complete -->
+  <div class="level-complete-overlay" x-show="gameComplete">
+    <div class="complete-card" style="max-width:520px">
+      <div style="color:#6aad5f; font-size:1.1rem">挑戰完成！</div>
+      <div class="rank-badge mt-2" :class="'rank-'+rank" x-text="rank"></div>
+      <div class="mt-1 small text-muted" x-text="rankDesc"></div>
+      <div class="score-big mt-3" x-text="totalScore"></div>
+      <div class="small text-muted">最終總分 / 30000</div>
+      <div class="mt-3 p-3 rounded" style="background:#0a1a08; border:1px solid #2a4a20">
+        <div class="d-flex justify-content-around">
+          <div class="text-center">
+            <div style="color:#6aad5f; font-size:1.2rem; font-weight:bold" x-text="Math.round(totalScore/30)"></div>
+            <div class="small text-muted">平均每關</div>
+          </div>
+          <div class="text-center">
+            <div style="color:#e06060; font-size:1.2rem; font-weight:bold" x-text="totalWrong"></div>
+            <div class="small text-muted">總錯誤數</div>
+          </div>
+          <div class="text-center">
+            <div style="color:#4a8abf; font-size:1.2rem; font-weight:bold" x-text="Math.round(totalScore/300)+'%'"></div>
+            <div class="small text-muted">準確率</div>
+          </div>
+        </div>
+      </div>
+      <div class="d-flex gap-3 mt-4 justify-content-center">
+        <button class="btn btn-military btn-lg px-4" @click="restartGame()">再玩一次</button>
+        <button class="btn btn-outline-secondary btn-lg px-4" @click="backToLobby()">返回大廳</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" defer></script>
+<script>
+// ===================== WEAPONS DATABASE =====================
+const WEAPONS_DB = [
+  {
+    id: 'cm11', name: 'CM-11 勇虎戰車', type: '主力戰車',
+    desc: '結合M60A3車體與M48砲塔，裝備105mm線膛主砲，配備熱像儀與雷射測距儀，為陸軍裝甲部隊核心戰力。',
+    specs: '重量:50噸 | 主砲:105mm | 速度:48km/h | 乘員:4人',
+    drawType: 'tank', color: '#4a5e3a',
+    spots: [
+      { label: '105mm主砲砲管', rx: 0.84, ry: 0.42, hint: '從砲塔向右延伸的長砲管' },
+      { label: '砲塔', rx: 0.42, ry: 0.33, hint: '車體上方旋轉的砲塔' },
+      { label: '履帶系統', rx: 0.50, ry: 0.82, hint: '車底部的黑色履帶' },
+      { label: '指揮官艙蓋', rx: 0.30, ry: 0.22, hint: '砲塔頂部的圓形艙蓋' },
+      { label: '雷射測距儀', rx: 0.56, ry: 0.27, hint: '砲塔右前方的感測器盒' }
+    ]
+  },
+  {
+    id: 'm60a3', name: 'M60A3 巴頓戰車', type: '主力戰車',
+    desc: '陸軍現役戰車，採用105mm線膛砲，具雷射測距儀及熱像儀，為裝甲部隊重要火力支柱。',
+    specs: '重量:52噸 | 主砲:105mm | 速度:48km/h | 乘員:4人',
+    drawType: 'tank', color: '#5a6a3a',
+    spots: [
+      { label: '105mm主砲', rx: 0.84, ry: 0.42, hint: '砲塔前方長砲管' },
+      { label: '裝甲砲塔', rx: 0.40, ry: 0.30, hint: '上方旋轉砲塔' },
+      { label: '負重輪', rx: 0.30, ry: 0.78, hint: '履帶上的大型路輪' },
+      { label: '砲手艙蓋', rx: 0.50, ry: 0.20, hint: '砲塔左側艙蓋' },
+      { label: '行動裝置履帶', rx: 0.70, ry: 0.82, hint: '右側履帶板' }
+    ]
+  },
+  {
+    id: 'f16v', name: 'F-16V 戰隼戰鬥機', type: '多用途戰鬥機',
+    desc: '配備AN/APG-83主動相陣雷達，可攜帶AIM-120先進中程空對空飛彈，具備超視距作戰能力，為空軍主力戰機。',
+    specs: '空重:8.5噸 | 速度:M2.05 | 升限:15,240m | 乘員:1人',
+    drawType: 'jet', color: '#7a8898',
+    spots: [
+      { label: 'AN/APG-83雷達罩', rx: 0.06, ry: 0.45, hint: '機鼻前端雷達罩' },
+      { label: '座艙罩', rx: 0.22, ry: 0.28, hint: '飛行員座艙透明罩' },
+      { label: '進氣道', rx: 0.35, ry: 0.65, hint: '機腹下方矩形進氣口' },
+      { label: 'AIM-120飛彈', rx: 0.58, ry: 0.62, hint: '翼下掛載飛彈' },
+      { label: 'F110引擎噴嘴', rx: 0.90, ry: 0.45, hint: '機尾引擎噴嘴' }
+    ]
+  },
+  {
+    id: 'idf', name: 'IDF 經國號戰鬥機', type: '輕型戰鬥機',
+    desc: '國人自行研製首架戰鬥機，以國防部長蔣經國命名，裝備天劍一型及二型空對空飛彈，為空軍制空主力。',
+    specs: '空重:6.5噸 | 速度:M1.8 | 升限:16,760m | 乘員:1人',
+    drawType: 'idf', color: '#6a7888',
+    spots: [
+      { label: '雷達罩', rx: 0.06, ry: 0.45, hint: '機鼻雷達整流罩' },
+      { label: '雙垂直尾翼', rx: 0.88, ry: 0.25, hint: '機尾雙垂直尾翼' },
+      { label: '天劍二型飛彈', rx: 0.55, ry: 0.60, hint: '翼端天劍飛彈' },
+      { label: '座艙罩', rx: 0.25, ry: 0.25, hint: '單座座艙透明罩' },
+      { label: '雙引擎進氣道', rx: 0.40, ry: 0.62, hint: '機腹兩側進氣道' }
+    ]
+  },
+  {
+    id: 'ah64e', name: 'AH-64E 阿帕契攻擊直升機', type: '攻擊直升機',
+    desc: '陸軍最強攻擊直升機，配備M230鏈砲、地獄火反坦克飛彈，具卓越反裝甲與火力支援能力，全天候可作戰。',
+    specs: '空重:5.2噸 | 主武器:M230 30mm鏈砲 | 速度:293km/h | 乘員:2人',
+    drawType: 'helicopter', color: '#3a4a2a',
+    spots: [
+      { label: '主旋翼', rx: 0.50, ry: 0.10, hint: '機頂大型主旋翼' },
+      { label: 'M230 30mm鏈砲', rx: 0.38, ry: 0.72, hint: '機鼻下方鏈砲' },
+      { label: '地獄火飛彈架', rx: 0.72, ry: 0.55, hint: '機身側方飛彈架' },
+      { label: '前端目標獲得系統', rx: 0.18, ry: 0.40, hint: '機鼻前方感測器球' },
+      { label: '尾旋翼', rx: 0.92, ry: 0.38, hint: '尾梁末端小旋翼' }
+    ]
+  },
+  {
+    id: 'cm32', name: 'CM-32 雲豹裝甲車', type: '八輪裝甲步兵車',
+    desc: '國人自研八輪裝甲步兵戰鬥車，具多種衍生型，大幅提升陸軍機械化能力，是現代化快速部署核心載台。',
+    specs: '重量:22.5噸 | 主砲:20mm機砲 | 速度:105km/h | 乘員:3人+9步兵',
+    drawType: 'apc', color: '#4a5e3a',
+    spots: [
+      { label: '20mm機砲砲塔', rx: 0.55, ry: 0.28, hint: '車頂武裝砲塔' },
+      { label: '八輪車輪', rx: 0.20, ry: 0.78, hint: '車側大型路輪' },
+      { label: '車體裝甲板', rx: 0.38, ry: 0.52, hint: '側面裝甲板' },
+      { label: '步兵下車艙門', rx: 0.75, ry: 0.58, hint: '車側步兵艙門' },
+      { label: '前車燈', rx: 0.08, ry: 0.55, hint: '車頭前照燈' }
+    ]
+  },
+  {
+    id: 'm109a6', name: 'M109A6 帕拉丁自走砲', type: '155mm自走砲',
+    desc: '配備155mm/39倍徑主砲，具「打了就跑」能力，射程達30公里，可發射GPS制導砲彈，是砲兵部隊核心。',
+    specs: '重量:28.7噸 | 主砲:155mm | 射程:30km | 速度:56km/h | 乘員:4人',
+    drawType: 'howitzer', color: '#5a6a4a',
+    spots: [
+      { label: '155mm砲管', rx: 0.78, ry: 0.35, hint: '砲塔前方超長砲管' },
+      { label: '砲口制退器', rx: 0.93, ry: 0.35, hint: '砲管末端制退器' },
+      { label: '裝甲砲塔', rx: 0.40, ry: 0.32, hint: '上方大型裝甲砲塔' },
+      { label: '履帶', rx: 0.50, ry: 0.80, hint: '底部黑色履帶' },
+      { label: '通訊天線', rx: 0.20, ry: 0.12, hint: '砲塔上方天線' }
+    ]
+  },
+  {
+    id: 'patriot', name: '愛國者三型飛彈系統', type: '防空飛彈系統',
+    desc: '可攔截彈道飛彈與巡弋飛彈，PAC-3型採直接撞擊殺傷，有效射高超過24公里，為國土防空關鍵系統。',
+    specs: '射程:70km | 射高:24km+ | 速度:M5 | 系統:雷達+4~8發射架',
+    drawType: 'missile', color: '#8a9aaa',
+    spots: [
+      { label: '飛彈發射管', rx: 0.65, ry: 0.35, hint: '傾斜的飛彈發射管組' },
+      { label: '相位陣列雷達', rx: 0.20, ry: 0.40, hint: '方形相位陣列雷達天線' },
+      { label: '發射車車體', rx: 0.50, ry: 0.72, hint: '重型載具車體' },
+      { label: '飛彈彈頭部分', rx: 0.68, ry: 0.18, hint: '飛彈頂端尖錐彈頭' },
+      { label: '液壓支撐臂', rx: 0.78, ry: 0.60, hint: '支撐發射架的液壓臂' }
+    ]
+  }
+];
+
+// ===================== DRAWING FUNCTIONS =====================
+function drawBackground(ctx, W, H, type) {
+  if (type === 'sky') {
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#0a1220'); g.addColorStop(1,'#1a2840');
+    ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+    // stars
+    ctx.fillStyle='rgba(255,255,255,0.4)';
+    for(let i=0;i<30;i++){ctx.fillRect(Math.random()*W,Math.random()*H*0.6,1,1);}
+  } else {
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#1a2010'); g.addColorStop(0.7,'#0d1808'); g.addColorStop(1,'#0a1206');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    // grid
+    ctx.strokeStyle='rgba(80,120,60,0.15)'; ctx.lineWidth=1;
+    for(let x=0;x<W;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(let y=0;y<H;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  }
+}
+
+function drawROCStar(ctx, cx, cy, r) {
+  ctx.save();
+  ctx.fillStyle='#003087'; ctx.strokeStyle='#1a50c8'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(cx,cy,r*1.3,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#ffffff';
+  ctx.beginPath();
+  for(let i=0;i<12;i++){
+    const a=i*Math.PI/6 - Math.PI/2;
+    const rr = i%2===0?r:r*0.45;
+    if(i===0) ctx.moveTo(cx+rr*Math.cos(a),cy+rr*Math.sin(a));
+    else ctx.lineTo(cx+rr*Math.cos(a),cy+rr*Math.sin(a));
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawTank(ctx, W, H, color) {
+  drawBackground(ctx, W, H, 'ground');
+  const cx = W*0.45, cy = H*0.55;
+
+  // shadow
+  ctx.save(); ctx.globalAlpha=0.3;
+  ctx.fillStyle='#000'; ctx.beginPath();
+  ctx.ellipse(cx, H*0.93, W*0.38, H*0.05, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // tracks
+  const tw = W*0.72, th = H*0.22, tx = cx-W*0.34, ty = H*0.73;
+  ctx.fillStyle='#1a1a1a'; ctx.strokeStyle='#333'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(tx,ty,tw,th,8); ctx.fill(); ctx.stroke();
+  // track links
+  ctx.strokeStyle='#2a2a2a'; ctx.lineWidth=1;
+  for(let i=0;i<12;i++){ctx.beginPath();ctx.moveTo(tx+i*(tw/12),ty);ctx.lineTo(tx+i*(tw/12),ty+th);ctx.stroke();}
+  // roadwheels
+  const wheelY = ty+th*0.5;
+  const wheelPositions = [0.12,0.22,0.32,0.42,0.52,0.62,0.72,0.88];
+  wheelPositions.forEach(rx=>{
+    const wx=tx+tw*rx;
+    ctx.fillStyle='#2a2a2a'; ctx.strokeStyle='#4a4a4a'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(wx,wheelY,H*0.07,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#3a3a3a'; ctx.beginPath(); ctx.arc(wx,wheelY,H*0.035,0,Math.PI*2); ctx.fill();
+  });
+  // sprocket
+  ctx.fillStyle='#3a3a3a'; ctx.strokeStyle='#555'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(tx+tw*0.04,wheelY,H*0.055,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(tx+tw*0.96,wheelY,H*0.055,0,Math.PI*2); ctx.fill(); ctx.stroke();
+
+  // hull
+  const hx=cx-W*0.3, hy=H*0.52, hw=W*0.6, hh=H*0.24;
+  const hg = ctx.createLinearGradient(hx,hy,hx,hy+hh);
+  hg.addColorStop(0,lighten(color,20)); hg.addColorStop(1,darken(color,20));
+  ctx.fillStyle=hg; ctx.strokeStyle=darken(color,30); ctx.lineWidth=2;
+  // sloped hull
+  ctx.beginPath();
+  ctx.moveTo(hx+W*0.08,hy); ctx.lineTo(hx+hw,hy);
+  ctx.lineTo(hx+hw,hy+hh); ctx.lineTo(hx,hy+hh);
+  ctx.lineTo(hx,hy+hh*0.3); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // ROC star on hull
+  drawROCStar(ctx, hx+hw*0.25, hy+hh*0.5, H*0.05);
+
+  // turret
+  const turx=cx-W*0.2, tury=H*0.28, turw=W*0.3, turh=H*0.27;
+  const tg = ctx.createLinearGradient(turx,tury,turx,tury+turh);
+  tg.addColorStop(0,lighten(color,30)); tg.addColorStop(1,color);
+  ctx.fillStyle=tg; ctx.strokeStyle=darken(color,30); ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(turx,tury,turw,turh,6); ctx.fill(); ctx.stroke();
+  // turret highlight
+  ctx.fillStyle='rgba(255,255,255,0.08)';
+  ctx.beginPath(); ctx.roundRect(turx+4,tury+4,turw-8,turh*0.35,4); ctx.fill();
+
+  // gun barrel
+  const gunX = turx+turw, gunY = H*0.42, gunL = W*0.38, gunW = H*0.05;
+  const gg = ctx.createLinearGradient(gunX,gunY-gunW/2,gunX,gunY+gunW/2);
+  gg.addColorStop(0,lighten(color,15)); gg.addColorStop(1,darken(color,15));
+  ctx.fillStyle=gg; ctx.strokeStyle=darken(color,30); ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.roundRect(gunX,gunY-gunW/2,gunL,gunW,3); ctx.fill(); ctx.stroke();
+  // bore evacuator (ring ~2/3 along barrel)
+  const bevX = gunX + gunL*0.6;
+  ctx.fillStyle=darken(color,10); ctx.strokeStyle=darken(color,30); ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.roundRect(bevX-8,gunY-gunW/2-4,16,gunW+8,3); ctx.fill(); ctx.stroke();
+
+  // commander hatch (circle on turret top left)
+  ctx.fillStyle=darken(color,15); ctx.strokeStyle=darken(color,30); ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(turx+turw*0.28, tury, H*0.055, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='rgba(0,0,0,0.5)';
+  ctx.beginPath(); ctx.arc(turx+turw*0.28, tury, H*0.03, 0, Math.PI*2); ctx.fill();
+
+  // laser rangefinder box
+  const lrX = turx+turw*0.7, lrY = tury+turh*0.2;
+  ctx.fillStyle='#2a3a2a'; ctx.strokeStyle='#4a5a4a'; ctx.lineWidth=1;
+  ctx.fillRect(lrX,lrY,W*0.06,H*0.1);
+  ctx.strokeRect(lrX,lrY,W*0.06,H*0.1);
+  ctx.fillStyle='#1a4a1a'; ctx.fillRect(lrX+2,lrY+2,W*0.025,H*0.04);
+
+  // antenna
+  ctx.strokeStyle='#3a5a3a'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(turx+W*0.05,tury); ctx.lineTo(turx+W*0.04,tury-H*0.2); ctx.stroke();
+}
+
+function drawJet(ctx, W, H, color, twin=false) {
+  drawBackground(ctx, W, H, 'sky');
+  const cx=W*0.5, cy=H*0.5;
+
+  // fuselage
+  const fx=W*0.04, fy=H*0.38, fw=W*0.82, fh=H*0.14;
+  const fg=ctx.createLinearGradient(fx,fy,fx,fy+fh);
+  fg.addColorStop(0,lighten(color,25)); fg.addColorStop(0.5,color); fg.addColorStop(1,darken(color,20));
+  ctx.fillStyle=fg; ctx.strokeStyle=darken(color,30); ctx.lineWidth=1.5;
+  // pointed nose shape
+  ctx.beginPath();
+  ctx.moveTo(fx,fy+fh/2);
+  ctx.quadraticCurveTo(fx+fw*0.08,fy,fx+fw*0.25,fy);
+  ctx.lineTo(fx+fw,fy+fh*0.2);
+  ctx.lineTo(fx+fw,fy+fh*0.8);
+  ctx.lineTo(fx+fw*0.25,fy+fh);
+  ctx.quadraticCurveTo(fx+fw*0.08,fy+fh,fx,fy+fh/2);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  // delta wing
+  ctx.fillStyle=lighten(color,5); ctx.strokeStyle=darken(color,25); ctx.lineWidth=1.5;
+  ctx.beginPath();
+  ctx.moveTo(fx+fw*0.25,fy+fh/2);
+  ctx.lineTo(fx+fw*0.78,fy+fh);
+  ctx.lineTo(fx+fw*0.78,H*0.82);
+  ctx.lineTo(fx+fw*0.28,H*0.82);
+  ctx.lineTo(fx+fw*0.15,fy+fh);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  // horizontal stabilizer
+  ctx.fillStyle=color; ctx.strokeStyle=darken(color,25); ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(fx+fw*0.72,fy+fh*0.6);
+  ctx.lineTo(fx+fw*0.95,H*0.68);
+  ctx.lineTo(fx+fw*0.95,H*0.75);
+  ctx.lineTo(fx+fw*0.75,fy+fh*0.85);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  // vertical tail fin
+  ctx.fillStyle=lighten(color,8); ctx.strokeStyle=darken(color,25); ctx.lineWidth=1.5;
+  ctx.beginPath();
+  ctx.moveTo(fx+fw*0.72,fy);
+  ctx.lineTo(fx+fw*0.88,H*0.12);
+  ctx.lineTo(fx+fw*0.96,H*0.12);
+  ctx.lineTo(fx+fw,fy);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  if(twin){
+    ctx.beginPath();
+    ctx.moveTo(fx+fw*0.68,fy+fh*0.2);
+    ctx.lineTo(fx+fw*0.82,H*0.16);
+    ctx.lineTo(fx+fw*0.90,H*0.16);
+    ctx.lineTo(fx+fw*0.95,fy+fh*0.2);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+
+  // cockpit canopy
+  ctx.fillStyle='rgba(80,160,220,0.7)'; ctx.strokeStyle='rgba(150,200,255,0.8)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.ellipse(fx+fw*0.21,fy-H*0.04,W*0.07,H*0.09,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='rgba(200,240,255,0.3)';
+  ctx.beginPath(); ctx.ellipse(fx+fw*0.19,fy-H*0.07,W*0.03,H*0.04,-.3,0,Math.PI*2); ctx.fill();
+
+  // intake
+  const inW=W*0.09, inH=H*0.1, inX=fx+fw*0.28, inY=fy+fh;
+  ctx.fillStyle='#0a0a0a'; ctx.strokeStyle=darken(color,20); ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.roundRect(inX,inY,inW,inH,3); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.fillRect(inX+2,inY,3,inH);
+
+  // engine nozzle
+  const nX=fx+fw*0.96, nY=fy+fh*0.15;
+  ctx.fillStyle='#1a1a1a'; ctx.strokeStyle='#555'; ctx.lineWidth=2;
+  ctx.beginPath();
+  for(let i=0;i<8;i++){
+    const a=i*Math.PI/4, r1=fh*0.5, r2=fh*0.3;
+    const px=nX+r1*Math.cos(a)*0.5, py=nY+fh/2+r1*Math.sin(a);
+    if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // glow
+  ctx.fillStyle='rgba(255,140,30,0.4)';
+  ctx.beginPath(); ctx.ellipse(nX+4,nY+fh/2,fh*0.25,fh*0.35,0,0,Math.PI*2); ctx.fill();
+
+  // under-wing missiles
+  if(!twin){
+    [[0.48,H*0.72],[0.60,H*0.78]].forEach(([rx,my])=>{
+      const mx=fx+fw*rx;
+      ctx.fillStyle='#8a9aaa'; ctx.strokeStyle='#aaa'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.roundRect(mx-W*0.04,my,W*0.12,H*0.03,4); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#cc6644';
+      ctx.beginPath(); ctx.moveTo(mx-W*0.04,my+H*0.015); ctx.lineTo(mx-W*0.052,my); ctx.lineTo(mx-W*0.052,my+H*0.03); ctx.fill();
+    });
+  } else {
+    // twin engine intake sides
+    [[fx+fw*0.35,fy+fh*0.3],[fx+fw*0.35,fy+fh*0.7]].forEach(([ix,iy])=>{
+      ctx.fillStyle='#0a0a0a'; ctx.strokeStyle=darken(color,20); ctx.lineWidth=1;
+      ctx.beginPath(); ctx.ellipse(ix,iy,W*0.04,H*0.04,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    });
+    // wingtip missiles
+    [[0.56,H*0.7],[0.56,H*0.58]].forEach(([rx,my])=>{
+      const mx=fx+fw*rx;
+      ctx.fillStyle='#aab0be'; ctx.strokeStyle='#ccd'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.roundRect(mx,my,W*0.1,H*0.025,3); ctx.fill(); ctx.stroke();
+    });
+  }
+
+  // nose radar cone highlight
+  ctx.fillStyle='rgba(255,255,255,0.12)';
+  ctx.beginPath(); ctx.ellipse(fx+W*0.04,fy+fh/2,W*0.03,H*0.05,0,0,Math.PI*2); ctx.fill();
+}
+
+function drawHelicopter(ctx, W, H, color) {
+  drawBackground(ctx, W, H, 'ground');
+  const cx=W*0.48, cy=H*0.55;
+
+  // main rotor hub
+  ctx.fillStyle=darken(color,20); ctx.strokeStyle='#333'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(cx,H*0.12,H*0.04,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  // rotor blades
+  [[-0.5,0],[0.5,0],[0,-0.5],[0,0.5]].forEach(([dx,dy])=>{
+    const bg=ctx.createLinearGradient(cx,H*0.12,cx+dx*W*0.44,H*0.12+dy*H*0.44);
+    bg.addColorStop(0,color); bg.addColorStop(1,darken(color,30));
+    ctx.fillStyle=bg; ctx.strokeStyle=darken(color,30); ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.ellipse(cx+dx*W*0.22,H*0.12+dy*H*0.22,W*0.22,H*0.025,Math.atan2(dy,dx),0,Math.PI*2);
+    ctx.fill(); ctx.stroke();
+  });
+
+  // fuselage body
+  const bx=W*0.18,by=H*0.35,bw=W*0.55,bh=H*0.35;
+  const bg2=ctx.createLinearGradient(bx,by,bx,by+bh);
+  bg2.addColorStop(0,lighten(color,25)); bg2.addColorStop(1,darken(color,10));
+  ctx.fillStyle=bg2; ctx.strokeStyle=darken(color,30); ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(bx+bw*0.1,by); ctx.lineTo(bx+bw*0.8,by); ctx.lineTo(bx+bw,by+bh*0.35);
+  ctx.lineTo(bx+bw,by+bh); ctx.lineTo(bx,by+bh); ctx.lineTo(bx,by+bh*0.3);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.06)';
+  ctx.fillRect(bx+4,by+4,bw-8,bh*0.3);
+
+  // cockpit windows
+  ctx.fillStyle='rgba(80,160,220,0.6)'; ctx.strokeStyle='rgba(150,200,255,0.7)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.roundRect(bx+bw*0.05,by+bh*0.08,bw*0.25,bh*0.38,4); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(bx+bw*0.08,by+bh*0.1,bw*0.1,bh*0.15,3); ctx.fill();
+
+  // TADS/PNVS sensor ball
+  ctx.fillStyle='#2a2a2a'; ctx.strokeStyle='#555'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(bx+bw*0.12,by+bh*0.62,H*0.065,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='rgba(80,160,220,0.5)';
+  ctx.beginPath(); ctx.arc(bx+bw*0.1,by+bh*0.58,H*0.03,0,Math.PI*2); ctx.fill();
+
+  // chain gun
+  ctx.fillStyle='#1a1a1a'; ctx.strokeStyle='#444'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(bx+bw*0.25,by+bh*0.82,W*0.15,H*0.04,2); ctx.fill(); ctx.stroke();
+
+  // stub wings
+  [[bw*0.6,bh*0.45],[bw*0.6,bh*0.55]].forEach(([wx,wy],i)=>{
+    ctx.fillStyle=color; ctx.strokeStyle=darken(color,25); ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.moveTo(bx+wx,by+wy);
+    ctx.lineTo(bx+wx+W*0.18,by+wy+(i===0?-H*0.08:H*0.08));
+    ctx.lineTo(bx+wx+W*0.18,by+wy+(i===0?-H*0.05:H*0.11));
+    ctx.lineTo(bx+wx,by+wy+H*0.035);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // hellfire missiles on pylon
+    [0,1,2].forEach(m=>{
+      const my=by+wy+(i===0?-H*0.08:H*0.08)+(m-1)*H*0.04;
+      ctx.fillStyle='#7a8870'; ctx.strokeStyle='#5a6850'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.roundRect(bx+wx+W*0.12,my,W*0.07,H*0.025,2); ctx.fill(); ctx.stroke();
+    });
+  });
+
+  // tail boom
+  const tx=bx+bw, ty=by+bh*0.2, tlen=W*0.25, th=H*0.1;
+  const tg=ctx.createLinearGradient(tx,ty,tx+tlen,ty);
+  tg.addColorStop(0,color); tg.addColorStop(1,darken(color,30));
+  ctx.fillStyle=tg; ctx.strokeStyle=darken(color,30); ctx.lineWidth=1.5;
+  ctx.beginPath();
+  ctx.moveTo(tx,ty+th*0.2); ctx.lineTo(tx+tlen,ty); ctx.lineTo(tx+tlen,ty+th*0.5);
+  ctx.lineTo(tx,ty+th); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // tail rotor
+  ctx.fillStyle=darken(color,20); ctx.strokeStyle='#333'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(tx+tlen,ty+th*0.25,H*0.025,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dx,dy])=>{
+    ctx.fillStyle=color; ctx.strokeStyle=darken(color,20); ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.ellipse(tx+tlen+dx*H*0.07,ty+th*0.25+dy*H*0.07,H*0.07,H*0.015,Math.atan2(dy,dx),0,Math.PI*2);
+    ctx.fill(); ctx.stroke();
+  });
+
+  // skids
+  ctx.strokeStyle='#3a3a3a'; ctx.lineWidth=3;
+  [[bx+bw*0.2,by+bh],[bx+bw*0.7,by+bh]].forEach(([sx,sy])=>{
+    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(sx,sy+H*0.12); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx-W*0.08,sy+H*0.12); ctx.lineTo(sx+W*0.08,sy+H*0.12); ctx.stroke();
+  });
+
+  // ROC star
+  drawROCStar(ctx, bx+bw*0.5, by+bh*0.5, H*0.045);
+}
+
+function drawAPC(ctx, W, H, color) {
+  drawBackground(ctx, W, H, 'ground');
+  const cx=W*0.45,cy=H*0.58;
+
+  // shadow
+  ctx.save(); ctx.globalAlpha=0.25;
+  ctx.fillStyle='#000'; ctx.beginPath();
+  ctx.ellipse(cx,H*0.94,W*0.4,H*0.04,0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // hull
+  const hx=W*0.06,hy=H*0.42,hw=W*0.82,hh=H*0.38;
+  const hg=ctx.createLinearGradient(hx,hy,hx,hy+hh);
+  hg.addColorStop(0,lighten(color,25)); hg.addColorStop(1,darken(color,15));
+  ctx.fillStyle=hg; ctx.strokeStyle=darken(color,30); ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(hx+hw*0.12,hy); ctx.lineTo(hx+hw*0.88,hy);
+  ctx.lineTo(hx+hw,hy+hh*0.25); ctx.lineTo(hx+hw,hy+hh);
+  ctx.lineTo(hx,hy+hh); ctx.lineTo(hx,hy+hh*0.25);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.06)';
+  ctx.beginPath();
+  ctx.moveTo(hx+hw*0.12,hy); ctx.lineTo(hx+hw*0.88,hy);
+  ctx.lineTo(hx+hw,hy+hh*0.25); ctx.lineTo(hx,hy+hh*0.25);
+  ctx.lineTo(hx,hy+hh*0.25); ctx.closePath(); ctx.fill();
+
+  // 8 wheels
+  const wheelY=hy+hh*0.95, wheelR=H*0.085;
+  const wpos=[0.1,0.22,0.34,0.46,0.58,0.70,0.82,0.92];
+  wpos.forEach(rx=>{
+    const wx=hx+hw*rx;
+    // tire
+    ctx.fillStyle='#1a1a1a'; ctx.strokeStyle='#333'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(wx,wheelY,wheelR,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    // rim
+    ctx.fillStyle='#3a3a3a'; ctx.strokeStyle='#555'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(wx,wheelY,wheelR*0.62,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    // hub
+    ctx.fillStyle='#5a5a5a';
+    ctx.beginPath(); ctx.arc(wx,wheelY,wheelR*0.2,0,Math.PI*2); ctx.fill();
+    // lug pattern
+    ctx.strokeStyle='#2a2a2a'; ctx.lineWidth=1;
+    for(let i=0;i<6;i++){
+      const a=i*Math.PI/3;
+      ctx.beginPath(); ctx.moveTo(wx+wheelR*0.25*Math.cos(a),wheelY+wheelR*0.25*Math.sin(a));
+      ctx.lineTo(wx+wheelR*0.55*Math.cos(a),wheelY+wheelR*0.55*Math.sin(a)); ctx.stroke();
+    }
+  });
+
+  // turret
+  const tx=hx+hw*0.48,ty=hy-H*0.16,tw=W*0.22,th2=H*0.2;
+  const tg=ctx.createLinearGradient(tx,ty,tx,ty+th2);
+  tg.addColorStop(0,lighten(color,30)); tg.addColorStop(1,color);
+  ctx.fillStyle=tg; ctx.strokeStyle=darken(color,30); ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(tx,ty,tw,th2,4); ctx.fill(); ctx.stroke();
+  // gun
+  ctx.fillStyle=darken(color,10); ctx.strokeStyle=darken(color,30); ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(tx+tw,ty+th2*0.35,W*0.2,H*0.04,2); ctx.fill(); ctx.stroke();
+
+  // side doors
+  ctx.strokeStyle=darken(color,25); ctx.lineWidth=1.5;
+  ctx.strokeRect(hx+hw*0.62,hy+hh*0.2,hw*0.15,hh*0.55);
+  ctx.strokeRect(hx+hw*0.62+hw*0.02,hy+hh*0.25,hw*0.015,hh*0.45);
+
+  // headlights
+  ctx.fillStyle='#ffffd0'; ctx.strokeStyle='#aaaa70'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.ellipse(hx+W*0.03,hy+hh*0.35,W*0.02,H*0.04,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='rgba(255,255,200,0.3)';
+  ctx.beginPath(); ctx.moveTo(hx,hy+hh*0.35); ctx.lineTo(hx-W*0.04,hy+hh*0.1); ctx.lineTo(hx-W*0.04,hy+hh*0.6); ctx.fill();
+
+  // ROC star
+  drawROCStar(ctx, hx+hw*0.3, hy+hh*0.5, H*0.05);
+}
+
+function drawHowitzer(ctx, W, H, color) {
+  drawBackground(ctx, W, H, 'ground');
+  const cx=W*0.42;
+
+  // shadow
+  ctx.save(); ctx.globalAlpha=0.25;
+  ctx.fillStyle='#000'; ctx.beginPath();
+  ctx.ellipse(cx,H*0.93,W*0.4,H*0.05,0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // tracks (wider/taller than tank)
+  const tw=W*0.65,trh=H*0.2,tx=W*0.07,ty=H*0.76;
+  ctx.fillStyle='#1a1a1a'; ctx.strokeStyle='#333'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(tx,ty,tw,trh,6); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle='#2a2a2a'; ctx.lineWidth=1;
+  for(let i=0;i<10;i++){ctx.beginPath();ctx.moveTo(tx+i*tw/10,ty);ctx.lineTo(tx+i*tw/10,ty+trh);ctx.stroke();}
+  // wheels
+  [0.1,0.2,0.32,0.44,0.56,0.68,0.82,0.94].forEach(rx=>{
+    const wx=tx+tw*rx, wy=ty+trh*0.5;
+    ctx.fillStyle='#2a2a2a'; ctx.strokeStyle='#4a4a4a'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(wx,wy,H*0.07,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#3a3a3a'; ctx.beginPath(); ctx.arc(wx,wy,H*0.035,0,Math.PI*2); ctx.fill();
+  });
+
+  // hull (taller box)
+  const hx=W*0.1,hy=H*0.5,hw=W*0.58,hh=H*0.28;
+  const hg=ctx.createLinearGradient(hx,hy,hx,hy+hh);
+  hg.addColorStop(0,lighten(color,20)); hg.addColorStop(1,darken(color,15));
+  ctx.fillStyle=hg; ctx.strokeStyle=darken(color,30); ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(hx,hy,hw,hh,4); ctx.fill(); ctx.stroke();
+
+  // turret (large armored box)
+  const turx=W*0.12,tury=H*0.2,turw=W*0.48,turh=H*0.32;
+  const tg=ctx.createLinearGradient(turx,tury,turx,tury+turh);
+  tg.addColorStop(0,lighten(color,30)); tg.addColorStop(1,color);
+  ctx.fillStyle=tg; ctx.strokeStyle=darken(color,30); ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(turx,tury,turw,turh,5); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.06)';
+  ctx.fillRect(turx+4,tury+4,turw-8,turh*0.3);
+
+  // very long gun barrel
+  const gx=turx+turw,gy=H*0.32,gl=W*0.52,gw=H*0.06;
+  const gg=ctx.createLinearGradient(gx,gy-gw/2,gx,gy+gw/2);
+  gg.addColorStop(0,lighten(color,15)); gg.addColorStop(1,darken(color,15));
+  ctx.fillStyle=gg; ctx.strokeStyle=darken(color,30); ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.roundRect(gx,gy-gw/2,gl,gw,3); ctx.fill(); ctx.stroke();
+
+  // muzzle brake
+  const mbx=gx+gl-W*0.06, mby=gy-gw/2-H*0.03;
+  ctx.fillStyle=darken(color,5); ctx.strokeStyle=darken(color,25); ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(mbx,mby,W*0.06,gw+H*0.06,3); ctx.fill(); ctx.stroke();
+  // muzzle brake holes
+  ctx.fillStyle='#0a0a0a';
+  [[mbx+W*0.008,mby+H*0.01],[mbx+W*0.008,mby+gw+H*0.05],[mbx+W*0.032,mby+H*0.01],[mbx+W*0.032,mby+gw+H*0.05]].forEach(([x,y])=>{
+    ctx.beginPath(); ctx.arc(x,y,W*0.008,0,Math.PI*2); ctx.fill();
+  });
+
+  // antenna
+  ctx.strokeStyle='#5a7a5a'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(turx+W*0.08,tury); ctx.lineTo(turx+W*0.06,tury-H*0.18); ctx.stroke();
+  ctx.fillStyle='#aaa'; ctx.beginPath(); ctx.arc(turx+W*0.06,tury-H*0.18,3,0,Math.PI*2); ctx.fill();
+
+  // ROC star
+  drawROCStar(ctx, hx+hw*0.3, hy+hh*0.5, H*0.05);
+}
+
+function drawMissileLauncher(ctx, W, H, color) {
+  drawBackground(ctx, W, H, 'ground');
+
+  // vehicle base (heavy truck)
+  const vx=W*0.1,vy=H*0.62,vw=W*0.8,vh=H*0.22;
+  const vg=ctx.createLinearGradient(vx,vy,vx,vy+vh);
+  vg.addColorStop(0,'#6a7a8a'); vg.addColorStop(1,'#3a4a5a');
+  ctx.fillStyle=vg; ctx.strokeStyle='#2a3a4a'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(vx,vy,vw,vh,4); ctx.fill(); ctx.stroke();
+
+  // cab
+  ctx.fillStyle='#4a5a6a'; ctx.strokeStyle='#2a3a4a'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.roundRect(vx,vy-H*0.12,vw*0.22,H*0.12,4); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='rgba(80,160,220,0.5)'; ctx.strokeStyle='rgba(150,200,255,0.5)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.roundRect(vx+W*0.02,vy-H*0.11,vw*0.08,H*0.07,3); ctx.fill(); ctx.stroke();
+
+  // wheels (6 total)
+  const wy=vy+vh*0.9;
+  [0.12,0.24,0.42,0.54,0.72,0.84].forEach(rx=>{
+    const wx=vx+vw*rx;
+    ctx.fillStyle='#111'; ctx.strokeStyle='#333'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(wx,wy,H*0.09,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#3a3a3a'; ctx.beginPath(); ctx.arc(wx,wy,H*0.05,0,Math.PI*2); ctx.fill();
+  });
+
+  // hydraulic support legs
+  [[vx+vw*0.7,vy+vh],[vx+vw*0.85,vy+vh]].forEach(([lx,ly])=>{
+    ctx.strokeStyle='#5a6a7a'; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(lx+W*0.02,ly+H*0.07); ctx.stroke();
+    ctx.fillStyle='#4a5a6a'; ctx.beginPath(); ctx.roundRect(lx,ly+H*0.06,W*0.06,H*0.025,2); ctx.fill();
+  });
+
+  // phased array radar (flat panel)
+  const rx2=vx+vw*0.08,ry2=H*0.22,rw=W*0.22,rh=H*0.35;
+  const rg=ctx.createLinearGradient(rx2,ry2,rx2+rw,ry2+rh);
+  rg.addColorStop(0,'#3a4a5a'); rg.addColorStop(1,'#1a2a3a');
+  ctx.fillStyle=rg; ctx.strokeStyle='#4a5a6a'; ctx.lineWidth=2;
+  ctx.save(); ctx.translate(rx2+rw/2,ry2+rh/2); ctx.rotate(-0.15);
+  ctx.beginPath(); ctx.roundRect(-rw/2,-rh/2,rw,rh,4); ctx.fill(); ctx.stroke();
+  // radar grid
+  ctx.strokeStyle='rgba(80,160,200,0.3)'; ctx.lineWidth=1;
+  for(let i=1;i<5;i++){ctx.beginPath();ctx.moveTo(-rw/2,rh*(i/5)-rh/2);ctx.lineTo(rw/2,rh*(i/5)-rh/2);ctx.stroke();}
+  for(let i=1;i<4;i++){ctx.beginPath();ctx.moveTo(rw*(i/4)-rw/2,-rh/2);ctx.lineTo(rw*(i/4)-rw/2,rh/2);ctx.stroke();}
+  ctx.fillStyle='rgba(100,180,220,0.15)';
+  ctx.fillRect(-rw/2,-rh/2,rw,rh);
+  ctx.restore();
+  // radar support pole
+  ctx.strokeStyle='#4a5a6a'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(rx2+rw/2,ry2+rh); ctx.lineTo(vx+vw*0.18,vy); ctx.stroke();
+
+  // launcher frame + missiles
+  const lfx=vx+vw*0.4,lfy=H*0.12,lfw=W*0.45,lfh=H*0.52;
+  // frame
+  ctx.strokeStyle='#4a5a6a'; ctx.lineWidth=4;
+  ctx.save(); ctx.translate(lfx,lfy+lfh); ctx.rotate(-0.45);
+  ctx.strokeRect(0,0,lfw,lfh*0.08);
+  // 4 missile tubes
+  for(let i=0;i<4;i++){
+    const ty=i*(lfh*0.22)+lfh*0.05;
+    ctx.fillStyle='#2a3a4a'; ctx.strokeStyle='#4a5a6a'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.roundRect(0,ty,lfw,lfh*0.18,4); ctx.fill(); ctx.stroke();
+    // missile inside
+    ctx.fillStyle='#6a7a8a';
+    ctx.beginPath(); ctx.roundRect(lfw*0.05,ty+lfh*0.03,lfw*0.85,lfh*0.12,3); ctx.fill();
+    // warhead
+    ctx.fillStyle='#aab0b8';
+    ctx.beginPath(); ctx.moveTo(lfw*0.05,ty+lfh*0.03+lfh*0.06); ctx.lineTo(-lfh*0.08,ty+lfh*0.03+lfh*0.06); ctx.lineTo(lfw*0.05,ty+lfh*0.03); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function lighten(hex, pct) {
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  const f=pct/100;
+  return `rgb(${Math.min(255,r+f*120|0)},${Math.min(255,g+f*120|0)},${Math.min(255,b+f*120|0)})`;
+}
+function darken(hex, pct) {
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  const f=pct/100;
+  return `rgb(${Math.max(0,r-f*120|0)},${Math.max(0,g-f*120|0)},${Math.max(0,b-f*120|0)})`;
+}
+
+function drawWeapon(ctx, W, H, weapon) {
+  ctx.clearRect(0,0,W,H);
+  switch(weapon.drawType) {
+    case 'tank': drawTank(ctx,W,H,weapon.color); break;
+    case 'jet': drawJet(ctx,W,H,weapon.color,false); break;
+    case 'idf': drawJet(ctx,W,H,weapon.color,true); break;
+    case 'helicopter': drawHelicopter(ctx,W,H,weapon.color); break;
+    case 'apc': drawAPC(ctx,W,H,weapon.color); break;
+    case 'howitzer': drawHowitzer(ctx,W,H,weapon.color); break;
+    case 'missile': drawMissileLauncher(ctx,W,H,weapon.color); break;
+  }
+}
+
+// ===================== LEVEL GENERATION =====================
+function shuffle(arr) {
+  const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.random()*i+1|0;[a[i],a[j]]=[a[j],a[i]];} return a;
+}
+
+function generateLevels() {
+  const levels = [];
+  const weapons = [...WEAPONS_DB];
+  let pairPool = [];
+  // generate enough pairs for 30 levels
+  while(pairPool.length < 30) {
+    const s = shuffle(weapons);
+    for(let i=0;i<s.length-1;i+=2) pairPool.push([s[i],s[i+1]]);
+  }
+  pairPool = pairPool.slice(0,30);
+
+  pairPool.forEach(([wL,wR])=>{
+    // left gets 2 spots, right gets 3 (or vary)
+    const leftCount = Math.random()<0.5 ? 2 : 3;
+    const rightCount = 5 - leftCount;
+    const leftSpotIdxs = shuffle([0,1,2,3,4]).slice(0,leftCount);
+    const rightSpotIdxs = shuffle([0,1,2,3,4]).slice(0,rightCount);
+
+    const spots = [
+      ...leftSpotIdxs.map(si=>({
+        weaponId: wL.id,
+        spotIdx: si,
+        canvas: 'left',
+        rx: wL.spots[si].rx,
+        ry: wL.spots[si].ry,
+        label: wL.spots[si].label,
+        hint: wL.spots[si].hint,
+        found: false
+      })),
+      ...rightSpotIdxs.map(si=>({
+        weaponId: wR.id,
+        spotIdx: si,
+        canvas: 'right',
+        rx: wR.spots[si].rx,
+        ry: wR.spots[si].ry,
+        label: wR.spots[si].label,
+        hint: wR.spots[si].hint,
+        found: false
+      }))
+    ];
+
+    levels.push({ left: wL, right: wR, spots });
+  });
+  return levels;
+}
+
+// ===================== ALPINE LOBBY DATA =====================
+function lobbyData() {
+  return {
+    visible: true,
+    init() {
+      Alpine.effect(()=>{
+        if(Alpine.store('showLobby')) {
+          this.visible = true;
+          Alpine.store('showLobby', false);
+        }
+      });
+    },
+    startGame() {
+      this.visible = false;
+      Alpine.store('startGame', true);
+    }
+  };
+}
+
+// ===================== ALPINE GAME DATA =====================
+function gameData() {
+  return {
+    started: false,
+    levels: [],
+    currentLevel: 0,
+    level: null,
+    wrongClicks: 0,
+    totalScore: 0,
+    totalWrong: 0,
+    levelScore: 0,
+    levelComplete: false,
+    gameComplete: false,
+    activeHint: null,
+    hintsLeft: 3,
+    rank: 'A',
+    rankDesc: '',
+    // overlay animation arrays for each canvas
+    animations: { left: [], right: [] },
+    _animFrame: null,
+
+    init() {
+      this.$watch('started', val => { if(val) this.setup(); });
+      Alpine.effect(() => {
+        if(Alpine.store('startGame')) { this.started = true; Alpine.store('startGame', false); }
+      });
+    },
+
+    setup() {
+      this.levels = generateLevels();
+      this.currentLevel = 0;
+      this.totalScore = 0;
+      this.totalWrong = 0;
+      this.levelComplete = false;
+      this.gameComplete = false;
+      this.$nextTick(()=>this.loadLevel());
+    },
+
+    loadLevel() {
+      const lvl = this.levels[this.currentLevel];
+      // deep clone spots for reactivity
+      this.level = {
+        left: lvl.left,
+        right: lvl.right,
+        spots: lvl.spots.map(s=>({...s, found:false}))
+      };
+      this.wrongClicks = 0;
+      this.levelScore = 0;
+      this.levelComplete = false;
+      this.activeHint = null;
+      this.hintsLeft = 3;
+      this.animations = { left: [], right: [] };
+      this.$nextTick(()=>{
+        this.drawCanvases();
+        this.startAnimLoop();
+      });
+    },
+
+    drawCanvases() {
+      ['left','right'].forEach(side=>{
+        const canvasId = side==='left'?'canvasLeft':'canvasRight';
+        const c = document.getElementById(canvasId);
+        if(!c) return;
+        const ctx = c.getContext('2d');
+        const weapon = side==='left' ? this.level.left : this.level.right;
+        drawWeapon(ctx, c.width, c.height, weapon);
+      });
+      this.redrawOverlays();
+    },
+
+    redrawOverlays() {
+      ['left','right'].forEach(side=>{
+        const ovId = side==='left'?'overlayLeft':'overlayRight';
+        const ov = document.getElementById(ovId);
+        if(!ov) return;
+        const ctx = ov.getContext('2d');
+        ctx.clearRect(0,0,ov.width,ov.height);
+        // draw found spots
+        (this.level.spots||[]).forEach((spot,i)=>{
+          if(spot.found && spot.canvas===side) {
+            const px = spot.rx * ov.width, py = spot.ry * ov.height;
+            ctx.strokeStyle='#44dd44'; ctx.lineWidth=3;
+            ctx.beginPath(); ctx.arc(px,py,ov.width*0.06,0,Math.PI*2); ctx.stroke();
+            ctx.fillStyle='rgba(0,200,0,0.15)';
+            ctx.beginPath(); ctx.arc(px,py,ov.width*0.06,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle='#44dd44'; ctx.font='bold 12px system-ui'; ctx.textAlign='center';
+            ctx.fillText(spot.label, px, py-ov.width*0.07);
+            ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.font='bold 13px system-ui';
+            ctx.fillText((i+1)+'', px, py+5);
+          }
+        });
+        // draw active animations
+        (this.animations[side]||[]).forEach(a=>{
+          ctx.save(); ctx.globalAlpha=a.alpha;
+          if(a.type==='correct') {
+            ctx.strokeStyle='#44ee44'; ctx.lineWidth=2;
+            ctx.beginPath(); ctx.arc(a.x,a.y,a.r,0,Math.PI*2); ctx.stroke();
+          } else {
+            ctx.strokeStyle='#ee4444'; ctx.lineWidth=2;
+            ctx.beginPath(); ctx.arc(a.x,a.y,a.r,0,Math.PI*2); ctx.stroke();
+          }
+          ctx.restore();
+        });
+      });
+    },
+
+    startAnimLoop() {
+      if(this._animFrame) cancelAnimationFrame(this._animFrame);
+      const loop=()=>{
+        let any=false;
+        ['left','right'].forEach(side=>{
+          this.animations[side]=this.animations[side].filter(a=>{
+            a.r+=3; a.alpha-=0.04;
+            return a.alpha>0;
+          });
+          if(this.animations[side].length>0) any=true;
+        });
+        this.redrawOverlays();
+        this._animFrame=requestAnimationFrame(loop);
+      };
+      this._animFrame=requestAnimationFrame(loop);
+    },
+
+    handleCanvasClick(e, side) {
+      if(this.levelComplete || this.gameComplete) return;
+      const canvasId = side==='left'?'canvasLeft':'canvasRight';
+      const c = document.getElementById(canvasId);
+      if(!c) return;
+      const rect = c.getBoundingClientRect();
+      const scaleX = c.width / rect.width;
+      const scaleY = c.height / rect.height;
+      const cx = (e.clientX - rect.left) * scaleX;
+      const cy = (e.clientY - rect.top) * scaleY;
+      const tol = c.width * 0.09;
+
+      let hit = false;
+      const spotsOnSide = this.level.spots.filter(s=>s.canvas===side && !s.found);
+      for(const spot of spotsOnSide) {
+        const px=spot.rx*c.width, py=spot.ry*c.height;
+        const dist=Math.hypot(cx-px,cy-py);
+        if(dist<=tol) {
+          spot.found=true;
+          this.animations[side].push({type:'correct',x:px,y:py,r:tol*0.3,alpha:0.8});
+          hit=true;
+          this.redrawOverlays();
+          this.checkLevelComplete();
+          break;
+        }
+      }
+      if(!hit) {
+        this.wrongClicks++;
+        this.animations[side].push({type:'wrong',x:cx,y:cy,r:10,alpha:0.9});
+      }
+    },
+
+    checkLevelComplete() {
+      if(this.level.spots.every(s=>s.found)) {
+        this.levelScore = Math.max(100, 1000 - this.wrongClicks*50);
+        this.totalScore += this.levelScore;
+        this.totalWrong += this.wrongClicks;
+        this.levelComplete = true;
+      }
+    },
+
+    nextLevel() {
+      if(this.currentLevel >= 29) {
+        this.finishGame();
+      } else {
+        this.currentLevel++;
+        this.levelComplete = false;
+        this.$nextTick(()=>this.loadLevel());
+      }
+    },
+
+    finishGame() {
+      const pct = this.totalScore / 30000;
+      if(pct>=0.95) { this.rank='S'; this.rankDesc='完美！您是頂尖的武器識別專家！'; }
+      else if(pct>=0.80) { this.rank='A'; this.rankDesc='優秀！您對國軍武器瞭如指掌！'; }
+      else if(pct>=0.60) { this.rank='B'; this.rankDesc='良好！繼續加強武器識別能力！'; }
+      else { this.rank='C'; this.rankDesc='加油！多了解中華民國國軍武器裝備！'; }
+      this.levelComplete = false;
+      this.gameComplete = true;
+    },
+
+    showHint(i) {
+      this.activeHint = this.activeHint===i ? null : i;
+    },
+
+    useHint() {
+      if(this.hintsLeft<=0) return;
+      const unfound = this.level.spots.filter(s=>!s.found);
+      if(unfound.length===0) return;
+      const spot = unfound[Math.floor(Math.random()*unfound.length)];
+      const idx = this.level.spots.indexOf(spot);
+      this.activeHint = idx;
+      this.hintsLeft--;
+    },
+
+    restartGame() {
+      this.gameComplete = false;
+      this.setup();
+    },
+
+    backToLobby() {
+      if(this._animFrame) cancelAnimationFrame(this._animFrame);
+      this.started = false;
+      this.gameComplete = false;
+      this.levelComplete = false;
+      Alpine.store('showLobby', true);
+    }
+  };
+}
+
+// Bootstrap Alpine stores after DOM ready
+document.addEventListener('alpine:init', ()=>{
+  Alpine.store('startGame', false);
+  Alpine.store('showLobby', false);
+});
+</script>
+</body>
+</html>
