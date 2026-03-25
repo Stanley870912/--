@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏗️ 模擬軍營建設</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a1210;color:#d1d5db;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden;height:100vh}
+.btn-back{position:fixed;top:8px;left:8px;z-index:200;background:rgba(20,40,30,.85);color:#6ee7b7;border:1px solid rgba(52,211,153,.25);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:.85rem;text-decoration:none}
+.btn-back:hover{background:rgba(52,211,153,.15)}
+
+/* ===== LAYOUT ===== */
+#app{display:none;height:100vh;grid-template-rows:44px 1fr 38px;grid-template-columns:200px 1fr 220px}
+#top-bar{grid-column:1/-1;background:rgba(10,20,16,.95);border-bottom:1px solid rgba(52,211,153,.15);display:flex;align-items:center;padding:0 12px;gap:14px;overflow-x:auto;font-size:.82rem}
+.res{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.res .rv{font-weight:700;min-width:42px}
+.res .rv.good{color:#34d399}.res .rv.warn{color:#fbbf24}.res .rv.bad{color:#f87171}
+.star-display{margin-left:auto;font-size:.95rem;letter-spacing:2px}
+
+/* build panel */
+#build-panel{background:rgba(10,20,16,.92);border-right:1px solid rgba(52,211,153,.1);display:flex;flex-direction:column;overflow:hidden}
+.cat-tabs{display:flex;flex-wrap:wrap;gap:2px;padding:6px;border-bottom:1px solid rgba(52,211,153,.1)}
+.cat-btn{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.12);border-radius:6px;padding:4px;font-size:1.1rem;cursor:pointer;flex:1;min-width:24px;text-align:center;transition:all .15s}
+.cat-btn:hover{background:rgba(52,211,153,.18)}
+.cat-btn.active{background:rgba(52,211,153,.22);border-color:rgba(52,211,153,.35);box-shadow:0 0 8px rgba(52,211,153,.1)}
+.bp-list{flex:1;overflow-y:auto;padding:4px}
+.bp-item{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;transition:all .15s;border:1px solid transparent;margin-bottom:2px}
+.bp-item:hover{background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.15)}
+.bp-item.active{background:rgba(52,211,153,.18);border-color:rgba(52,211,153,.3)}
+.bp-item.disabled{opacity:.4;pointer-events:none}
+.bp-emoji{font-size:1.3rem;width:28px;text-align:center}
+.bp-name{font-size:.8rem;font-weight:600;color:#d1d5db}
+.bp-cost{font-size:.72rem;color:#6ee7b7}
+
+/* map area */
+#map-area{display:flex;align-items:center;justify-content:center;background:#080f0c;overflow:hidden;position:relative}
+#map{cursor:crosshair}
+
+/* info panel */
+#info-panel{background:rgba(10,20,16,.92);border-left:1px solid rgba(52,211,153,.1);padding:10px;overflow-y:auto;font-size:.82rem}
+.ip-title{font-size:1rem;font-weight:800;margin-bottom:6px;color:#6ee7b7}
+.ip-stat{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.ip-stat .label{color:#9ca3af}.ip-stat .val{font-weight:600}
+.ip-section{margin-top:10px;padding-top:8px;border-top:1px solid rgba(52,211,153,.1)}
+.ip-section h4{font-size:.78rem;color:#6ee7b7;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
+.ip-msg{font-size:.78rem;color:#9ca3af;line-height:1.5;margin-top:4px}
+.ip-warn{color:#fbbf24;font-size:.78rem;margin-top:6px}
+.ip-danger{color:#f87171;font-size:.78rem;margin-top:6px}
+
+/* bottom bar */
+#bottom-bar{grid-column:1/-1;background:rgba(10,20,16,.95);border-top:1px solid rgba(52,211,153,.15);display:flex;align-items:center;padding:0 12px;gap:12px;font-size:.8rem}
+.time-btn{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.15);color:#6ee7b7;border-radius:5px;padding:2px 10px;cursor:pointer;font-size:.8rem}
+.time-btn.active{background:rgba(52,211,153,.25);border-color:#34d399}
+.time-btn:hover{background:rgba(52,211,153,.2)}
+#date-display{color:#6ee7b7;font-weight:700}
+#ticker{flex:1;text-align:right;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* overlays */
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:100;background:rgba(0,0,0,.55)}
+.panel{background:rgba(10,24,18,.97);border:1px solid rgba(52,211,153,.2);border-radius:16px;padding:36px;text-align:center;max-width:500px;width:92%;box-shadow:0 0 60px rgba(52,211,153,.08)}
+.panel h1{font-size:2.2rem;margin-bottom:4px}
+.panel h2{font-size:1rem;color:#6ee7b7;margin-bottom:10px}
+.panel p{color:#9ca3af;margin-bottom:6px;line-height:1.5;font-size:.88rem}
+.btn{display:inline-block;padding:10px 26px;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;border:none;transition:all .2s;margin:4px}
+.btn-primary{background:linear-gradient(135deg,#059669,#34d399);color:#fff}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 4px 18px rgba(52,211,153,.35)}
+.btn-ghost{background:rgba(52,211,153,.1);color:#6ee7b7;border:1px solid rgba(52,211,153,.2)}
+.btn-ghost:hover{background:rgba(52,211,153,.18)}
+.keys-row{display:flex;gap:5px;justify-content:center;margin:6px 0;flex-wrap:wrap}
+.key-tag{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:5px;padding:2px 8px;font-size:.73rem;color:#6ee7b7}
+
+/* event overlay */
+#event-overlay{display:none}
+.evt-panel{background:rgba(10,24,18,.97);border:1px solid rgba(250,204,21,.25);border-radius:14px;padding:28px;text-align:center;max-width:420px;width:90%;box-shadow:0 0 40px rgba(250,204,21,.08)}
+.evt-panel h2{font-size:1.4rem;margin-bottom:6px}
+.evt-panel .evt-desc{color:#d1d5db;margin-bottom:10px;line-height:1.5}
+.evt-panel .evt-result{font-weight:700;margin:8px 0;font-size:1rem}
+.evt-result.pos{color:#34d399}.evt-result.neg{color:#f87171}
+
+.score-big{font-size:2rem;font-weight:900;color:#fbbf24;margin:6px 0}
+
+@media(max-width:900px){
+  #app{grid-template-columns:160px 1fr 0}
+  #info-panel{display:none}
+}
+@media(max-width:600px){
+  #app{grid-template-columns:0 1fr 0}
+  #build-panel,#info-panel{display:none}
+}
+</style>
+</head>
+<body>
+<a href="../index.html" class="btn-back">← 返回大廳</a>
+
+<div id="app">
+  <!-- TOP BAR -->
+  <div id="top-bar">
+    <div class="res">💰 <span class="rv good" id="r-budget">$500,000</span></div>
+    <div class="res">📊 <span class="rv" id="r-net">+$40K</span></div>
+    <div class="res">👥 <span class="rv" id="r-pop">0/0</span></div>
+    <div class="res">⚡ <span class="rv" id="r-power">0/0</span></div>
+    <div class="res">💧 <span class="rv" id="r-water">0/0</span></div>
+    <div class="res">😊 <span class="rv" id="r-morale">50%</span></div>
+    <div class="res">🎖️ <span class="rv" id="r-ready">0%</span></div>
+    <div class="res">🛡️ <span class="rv" id="r-def">0</span></div>
+    <div class="star-display" id="r-star">⭐</div>
+  </div>
+
+  <!-- BUILD PANEL -->
+  <div id="build-panel">
+    <div class="cat-tabs" id="cat-tabs"></div>
+    <div class="bp-list" id="bp-list"></div>
+  </div>
+
+  <!-- MAP -->
+  <div id="map-area"><canvas id="map"></canvas></div>
+
+  <!-- INFO PANEL -->
+  <div id="info-panel"><div id="info-content"></div></div>
+
+  <!-- BOTTOM BAR -->
+  <div id="bottom-bar">
+    <button class="time-btn" data-speed="0" title="暫停">⏸</button>
+    <button class="time-btn active" data-speed="1" title="正常">▶</button>
+    <button class="time-btn" data-speed="3" title="快速">▶▶</button>
+    <button class="time-btn" data-speed="10" title="極速">▶▶▶</button>
+    <span id="date-display">第 1 年 1 月</span>
+    <span id="ticker">歡迎來到你的新基地！點選左側建築開始建設。</span>
+  </div>
+</div>
+
+<!-- MENU OVERLAY -->
+<div class="overlay" id="menu-overlay">
+  <div class="panel">
+    <h1>🏗️ 模擬軍營建設</h1>
+    <h2>Military Base Builder</h2>
+    <p>參考模擬城市，打造你的軍事基地！<br>管理預算、建設設施、訓練部隊、防禦敵人！</p>
+    <div class="keys-row">
+      <span class="key-tag">左鍵 放置</span>
+      <span class="key-tag">右鍵 拖曳</span>
+      <span class="key-tag">滾輪 縮放</span>
+      <span class="key-tag">ESC 取消</span>
+    </div>
+    <p style="font-size:.8rem;color:#6ee7b7;margin:8px 0">💡 先建發電廠和淨水廠，再蓋兵營招募士兵！</p>
+    <button class="btn btn-primary" onclick="startGame()">🎮 開始建設</button>
+  </div>
+</div>
+
+<!-- GAME OVER OVERLAY -->
+<div class="overlay" id="go-overlay" style="display:none">
+  <div class="panel">
+    <h1 id="go-title">📋 基地報告</h1>
+    <div class="score-big" id="go-months">0</div>
+    <p>個月的營運記錄</p>
+    <p>最高人數：<span id="go-pop" style="color:#6ee7b7;font-weight:700"></span>　最高評等：<span id="go-star" style="color:#fbbf24;font-weight:700"></span></p>
+    <p id="go-reason" style="color:#f87171"></p>
+    <div style="margin-top:12px">
+      <button class="btn btn-primary" onclick="startGame()">🔄 重新開始</button>
+      <button class="btn btn-ghost" onclick="showMenu()">🏠 主選單</button>
+    </div>
+  </div>
+</div>
+
+<!-- EVENT OVERLAY -->
+<div class="overlay" id="event-overlay" style="display:none">
+  <div class="evt-panel">
+    <h2 id="evt-title"></h2>
+    <p class="evt-desc" id="evt-desc"></p>
+    <p class="evt-result" id="evt-result"></p>
+    <button class="btn btn-primary" onclick="closeEvent()">確認</button>
+  </div>
+</div>
+
+<script>
+// ===================== CONSTANTS =====================
+const MAP_W = 40, MAP_H = 28;
+let CELL = 28;
+const BASE_INCOME = 40000;
+const SOLDIER_INCOME = 500;
+
+// ===================== BUILDING DEFINITIONS =====================
+const CATS = [
+  { id:'command', name:'指揮', emoji:'🏛️' },
+  { id:'housing', name:'營舍', emoji:'🏠' },
+  { id:'training', name:'訓練', emoji:'🎯' },
+  { id:'support', name:'後勤', emoji:'🍽️' },
+  { id:'infra', name:'基建', emoji:'⚡' },
+  { id:'defense', name:'防禦', emoji:'🛡️' },
+  { id:'demolish', name:'拆除', emoji:'🔨' },
+];
+
+const B = {
+  command:    { name:'指揮中心', emoji:'🏛️', cat:'command', cost:50000, maint:1000, pw:5, wt:3, color:'#b45309', desc:'軍營核心設施，提供基礎指揮能力', personnel:10, morale:5, readiness:10, limit:1 },
+  comms:     { name:'通訊塔',   emoji:'📡', cat:'command', cost:25000, maint:500,  pw:8, wt:0, color:'#d97706', desc:'強化通訊能力，提升戰備', readiness:12 },
+  barracks:  { name:'兵營',     emoji:'🏠', cat:'housing', cost:15000, maint:300,  pw:2, wt:3, color:'#2563eb', desc:'容納 30 名士兵', personnel:30 },
+  quarters:  { name:'軍官宿舍', emoji:'🏢', cat:'housing', cost:25000, maint:500,  pw:3, wt:2, color:'#3b82f6', desc:'軍官住所，提升士氣', personnel:10, morale:8 },
+  training:  { name:'訓練場',   emoji:'🏋️', cat:'training', cost:20000, maint:400,  pw:2, wt:1, color:'#ea580c', desc:'體能訓練，+戰力+士氣', readiness:15, morale:5 },
+  firing:    { name:'射擊場',   emoji:'🎯', cat:'training', cost:18000, maint:350,  pw:1, wt:0, color:'#f97316', desc:'射擊訓練，+戰力', readiness:12 },
+  armory:    { name:'軍械庫',   emoji:'🔫', cat:'training', cost:30000, maint:500,  pw:2, wt:0, color:'#92400e', desc:'武器存放與保養', readiness:10 },
+  motor:     { name:'車輛庫',   emoji:'🚛', cat:'training', cost:35000, maint:700,  pw:3, wt:1, color:'#57534e', desc:'車輛維護，+戰力+防禦', readiness:8, defense:5 },
+  helipad:   { name:'直升機坪', emoji:'🚁', cat:'training', cost:60000, maint:1200, pw:5, wt:0, color:'#6b7280', desc:'空中支援能力', readiness:10, defense:10 },
+  mess:      { name:'餐廳',     emoji:'🍽️', cat:'support', cost:12000, maint:500,  pw:3, wt:5, color:'#16a34a', desc:'供餐，每間服務 50 人', morale:10, serves:50 },
+  medical:   { name:'醫療中心', emoji:'🏥', cat:'support', cost:30000, maint:800,  pw:5, wt:4, color:'#dc2626', desc:'醫療照護，每間服務 80 人', morale:12, serves:80 },
+  recreation:{ name:'休閒中心', emoji:'🎮', cat:'support', cost:15000, maint:300,  pw:3, wt:1, color:'#22c55e', desc:'提供休閒娛樂', morale:15 },
+  px:        { name:'福利社',   emoji:'🏪', cat:'support', cost:10000, maint:200,  pw:2, wt:1, color:'#10b981', desc:'日用品販售，+士氣+收入', morale:8, income:2000 },
+  power:     { name:'發電廠',   emoji:'⚡', cat:'infra', cost:45000, maint:1000, pw:-60, wt:2, color:'#eab308', desc:'產生 60 單位電力' },
+  water:     { name:'淨水廠',   emoji:'💧', cat:'infra', cost:35000, maint:800,  pw:5, wt:-50, color:'#0ea5e9', desc:'產生 50 單位淨水' },
+  road:      { name:'道路',     emoji:'🛣️', cat:'infra', cost:500,   maint:10,   pw:0, wt:0, color:'#4b5563', desc:'美化基地，組織動線' },
+  warehouse: { name:'倉庫',     emoji:'📦', cat:'infra', cost:12000, maint:150,  pw:1, wt:0, color:'#78716c', desc:'儲存物資，減少 5% 維護費', costReduction:0.05 },
+  tower:     { name:'哨塔',     emoji:'🗼', cat:'defense', cost:10000, maint:200,  pw:1, wt:0, color:'#7c3aed', desc:'提供防禦偵查', defense:15 },
+  wall:      { name:'圍牆',     emoji:'🧱', cat:'defense', cost:2000,  maint:30,   pw:0, wt:0, color:'#78716c', desc:'基礎防禦工事', defense:3 },
+};
+
+// ===================== EVENTS =====================
+const EVENTS = [
+  { title:'🔍 上級視察', desc:'旅長親自前來視察基地！', check:'readiness', threshold:60,
+    good:'長官非常滿意！獲得特別撥款 $30,000', bad:'長官搖頭嘆氣，扣減下月預算 $15,000',
+    goodFx: s=>{ s.budget+=30000 }, badFx: s=>{ s.budget-=15000 }},
+  { title:'🌪️ 颱風來襲', desc:'強颱直撲基地，部分設施受損！', check:'none',
+    good:'緊急維修費用 $20,000', bad:'',
+    goodFx: s=>{ s.budget-=20000 }, badFx: null },
+  { title:'💥 敵方偵察', desc:'偵測到敵方無人機在附近偵察！', check:'defense', threshold:40,
+    good:'防禦體系成功驅離！士氣提升', bad:'敵方成功蒐集情報，士氣下降',
+    goodFx: s=>{ s.moraleBonus+=8 }, badFx: s=>{ s.moraleBonus-=10 }},
+  { title:'📈 國防特別預算', desc:'國會通過軍事特別預算！', check:'none',
+    good:'獲得額外撥款 $50,000！', bad:'',
+    goodFx: s=>{ s.budget+=50000 }, badFx: null },
+  { title:'📉 預算緊縮', desc:'政府財政吃緊，軍費遭到削減', check:'none',
+    good:'基地補助減少 $25,000', bad:'',
+    goodFx: s=>{ s.budget-=25000 }, badFx: null },
+  { title:'🏆 聯合演習', desc:'受邀參加軍種聯合演習！', check:'readiness', threshold:70,
+    good:'表現優異！獲得嘉獎 $20,000，士氣大增', bad:'訓練不足，表現普通',
+    goodFx: s=>{ s.budget+=20000; s.moraleBonus+=10 }, badFx: s=>{ s.moraleBonus-=5 }},
+  { title:'🦠 傳染病爆發', desc:'基地出現群聚感染案例！', check:'medicalOk', threshold:1,
+    good:'醫療中心迅速控制疫情', bad:'缺乏醫療設施，人員大量請病假，士氣暴跌',
+    goodFx: s=>{ s.moraleBonus-=3 }, badFx: s=>{ s.moraleBonus-=15; s.personnel=Math.max(0,s.personnel-10) }},
+  { title:'🎖️ 士兵慶功宴', desc:'為表現優秀的士兵舉辦慶功宴！', check:'none',
+    good:'士氣提升！', bad:'',
+    goodFx: s=>{ s.moraleBonus+=8 }, badFx: null },
+  { title:'⚡ 設備故障', desc:'部分電力設備老化故障！', check:'none',
+    good:'維修費用 $12,000', bad:'',
+    goodFx: s=>{ s.budget-=12000 }, badFx: null },
+  { title:'🤝 友軍支援', desc:'友軍部隊前來協同訓練！', check:'none',
+    good:'戰備能力暫時提升！', bad:'',
+    goodFx: s=>{ s.readinessBonus+=10 }, badFx: null },
+  { title:'🎊 國慶閱兵', desc:'被選為國慶閱兵代表部隊！', check:'morale', threshold:65,
+    good:'閱兵圓滿成功！獲得 $40,000 獎勵', bad:'表現不夠整齊，稍顯尷尬',
+    goodFx: s=>{ s.budget+=40000; s.moraleBonus+=5 }, badFx: s=>{ s.moraleBonus-=5 }},
+  { title:'🔧 裝備升級', desc:'上級撥發新式裝備！', check:'none',
+    good:'戰力提升！', bad:'',
+    goodFx: s=>{ s.readinessBonus+=8 }, badFx: null },
+];
+
+// ===================== STATE =====================
+let terrain, grid, grassNoise;
+let S; // game state
+let selectedCat = 'command', selectedBuild = null, bulldozeMode = false;
+let hoverX = -1, hoverY = -1;
+let camX = 0, camY = 0, dragging = false, dragStartX, dragStartY, camStartX, camStartY;
+let gameSpeed = 1, monthTimer = 0;
+let state = 'menu'; // menu | playing | gameover
+let animFrame, lastTime;
+let tickerMsg = '';
+let maxPop = 0, maxStars = 0;
+let messages = [];
+
+const canvas = document.getElementById('map');
+const ctx = canvas.getContext('2d');
+
+// ===================== TERRAIN =====================
+function generateTerrain() {
+  terrain = Array.from({length:MAP_H}, ()=>Array(MAP_W).fill('grass'));
+  grassNoise = Array.from({length:MAP_H}, ()=>Array.from({length:MAP_W}, ()=>Math.random()));
+
+  // small lake
+  const lx = 4 + Math.floor(Math.random()*8);
+  const ly = 4 + Math.floor(Math.random()*8);
+  for(let dy=-2;dy<=2;dy++) for(let dx=-3;dx<=3;dx++){
+    if(dx*dx+dy*dy<=7){
+      const x=lx+dx,y=ly+dy;
+      if(x>=0&&x<MAP_W&&y>=0&&y<MAP_H) terrain[y][x]='water';
+    }
+  }
+  // second small pond
+  const l2x = MAP_W-8+Math.floor(Math.random()*6);
+  const l2y = MAP_H-8+Math.floor(Math.random()*6);
+  for(let dy=-1;dy<=1;dy++) for(let dx=-2;dx<=2;dx++){
+    if(dx*dx+dy*dy<=3){
+      const x=l2x+dx,y=l2y+dy;
+      if(x>=0&&x<MAP_W&&y>=0&&y<MAP_H) terrain[y][x]='water';
+    }
+  }
+
+  // scatter trees
+  for(let i=0;i<35;i++){
+    const x=Math.floor(Math.random()*MAP_W), y=Math.floor(Math.random()*MAP_H);
+    if(terrain[y][x]==='grass') terrain[y][x]='tree';
+  }
+
+  // clear center for command center
+  const cx=Math.floor(MAP_W/2), cy=Math.floor(MAP_H/2);
+  for(let dy=-3;dy<=3;dy++) for(let dx=-3;dx<=3;dx++){
+    const x=cx+dx,y=cy+dy;
+    if(x>=0&&x<MAP_W&&y>=0&&y<MAP_H){ terrain[y][x]='grass'; }
+  }
+}
+
+// ===================== BUILDING LOGIC =====================
+function canPlace(x,y,key){
+  if(x<0||x>=MAP_W||y<0||y>=MAP_H) return false;
+  if(terrain[y][x]==='water') return false;
+  if(grid[y][x]) return false;
+  if(key==='road' && terrain[y][x]==='tree') return true; // roads clear trees
+  if(terrain[y][x]==='tree') return false;
+  const def = B[key];
+  if(!def) return false;
+  if(def.cost > S.budget) return false;
+  if(def.limit){
+    let count=0;
+    for(let r=0;r<MAP_H;r++) for(let c=0;c<MAP_W;c++) if(grid[r][c]===key) count++;
+    if(count>=def.limit) return false;
+  }
+  return true;
+}
+
+function placeBuilding(x,y,key){
+  if(!canPlace(x,y,key)) return false;
+  terrain[y][x]='grass'; // clear tree if any
+  grid[y][x]=key;
+  S.budget -= B[key].cost;
+  addMessage(`✅ 建造了${B[key].name}（-$${B[key].cost.toLocaleString()}）`);
+  recalcStats();
+  return true;
+}
+
+function removeBuilding(x,y){
+  if(x<0||x>=MAP_W||y<0||y>=MAP_H) return;
+  const key = grid[y][x];
+  if(!key) return;
+  const refund = Math.floor(B[key].cost * 0.4);
+  grid[y][x] = null;
+  S.budget += refund;
+  addMessage(`🔨 拆除了${B[key].name}（+$${refund.toLocaleString()} 回收）`);
+  recalcStats();
+}
+
+// ===================== STATS =====================
+function recalcStats(){
+  let pwGen=0, pwUse=0, wtGen=0, wtUse=0;
+  let personnelCap=0, moraleSum=0, readySum=0, defSum=0;
+  let totalMaint=0, extraIncome=0, warehouseCount=0;
+  let messServes=0, medServes=0, messCap=0, medCap=0;
+
+  for(let y=0;y<MAP_H;y++) for(let x=0;x<MAP_W;x++){
+    const k=grid[y][x]; if(!k) continue;
+    const b=B[k];
+    if(b.pw<0) pwGen+=-b.pw; else pwUse+=b.pw;
+    if(b.wt<0) wtGen+=-b.wt; else wtUse+=b.wt;
+    totalMaint+=b.maint;
+    if(b.personnel) personnelCap+=b.personnel;
+    if(b.morale) moraleSum+=b.morale;
+    if(b.readiness) readySum+=b.readiness;
+    if(b.defense) defSum+=b.defense;
+    if(b.income) extraIncome+=b.income;
+    if(b.costReduction) warehouseCount++;
+    if(b.serves && k==='mess'){ messCap++; messServes+=b.serves; }
+    if(b.serves && k==='medical'){ medCap++; medServes+=b.serves; }
+  }
+
+  // warehouse discount
+  const discount = Math.min(warehouseCount*0.05, 0.25);
+  totalMaint = Math.floor(totalMaint*(1-discount));
+
+  S.powerGen=pwGen; S.powerUse=pwUse;
+  S.waterGen=wtGen; S.waterUse=wtUse;
+  S.personnelCap=personnelCap;
+  S.totalMaint=totalMaint;
+  S.extraIncome=extraIncome;
+  S.messServes=messServes; S.medServes=medServes;
+
+  // penalties
+  const pwOk = pwGen>=pwUse;
+  const wtOk = wtGen>=wtUse;
+  const messOk = messServes >= S.personnel;
+  const medOk = medServes >= S.personnel;
+
+  // morale (0-100)
+  let morale = 40 + moraleSum + S.moraleBonus;
+  if(!pwOk) morale -= 15;
+  if(!wtOk) morale -= 15;
+  if(!messOk && S.personnel>0) morale -= 10;
+  if(!medOk && S.personnel>0) morale -= 5;
+  S.morale = Math.max(0, Math.min(100, morale));
+
+  // readiness (0-100)
+  let readiness = readySum + S.readinessBonus;
+  readiness = readiness * (S.morale/100); // scaled by morale
+  if(!pwOk) readiness *= 0.5;
+  S.readiness = Math.max(0, Math.min(100, Math.round(readiness)));
+
+  // defense
+  S.defense = Math.min(100, defSum + Math.floor(S.readiness*0.2));
+
+  // medicalOk for events
+  S.medicalOk = medCap > 0 ? 1 : 0;
+
+  // net income
+  S.netIncome = BASE_INCOME + S.personnel*SOLDIER_INCOME + S.extraIncome - S.totalMaint;
+
+  // star rating
+  const finScore = S.budget > 0 ? Math.min(100, S.budget/10000) : Math.max(0, 50 + S.budget/5000);
+  const overall = S.morale*0.3 + S.readiness*0.3 + Math.min(100,S.defense)*0.2 + finScore*0.2;
+  S.stars = overall>=80?5 : overall>=60?4 : overall>=40?3 : overall>=20?2 : 1;
+  if(S.stars>maxStars) maxStars=S.stars;
+}
+
+// ===================== SIMULATION =====================
+function simulateMonth(){
+  S.month++;
+  if(S.month>12){ S.month=1; S.year++; }
+
+  // personnel growth
+  if(S.personnel < S.personnelCap){
+    const growth = Math.ceil(S.personnelCap * 0.12);
+    S.personnel = Math.min(S.personnelCap, S.personnel+growth);
+  }
+  if(S.personnel > S.personnelCap){
+    S.personnel = Math.max(0, S.personnel - Math.ceil((S.personnel-S.personnelCap)*0.3));
+  }
+  if(S.personnel > maxPop) maxPop = S.personnel;
+
+  // decay bonuses
+  S.moraleBonus = Math.round(S.moraleBonus * 0.8);
+  S.readinessBonus = Math.round(S.readinessBonus * 0.7);
+
+  recalcStats();
+
+  // apply budget
+  S.budget += S.netIncome;
+
+  // random event
+  if(Math.random() < 0.25 && S.totalMonths > 2){
+    triggerEvent();
+  }
+
+  S.totalMonths++;
+
+  // check game over
+  if(S.budget < -100000){
+    S.debtMonths++;
+    if(S.debtMonths >= 3){
+      state = 'gameover';
+      onGameOver('連續三個月嚴重赤字，基地被迫關閉！');
+    }
+  } else {
+    S.debtMonths = 0;
+  }
+
+  // warnings
+  if(S.powerGen < S.powerUse) addMessage('⚠️ 電力不足！建築效能降低');
+  if(S.waterGen < S.waterUse) addMessage('⚠️ 水源不足！士氣下降中');
+  if(S.budget < 0) addMessage('💸 預算赤字！連續 3 個月將關閉基地');
+}
+
+function triggerEvent(){
+  const evt = EVENTS[Math.floor(Math.random()*EVENTS.length)];
+  let isGood = true;
+  if(evt.check !== 'none'){
+    const val = evt.check==='medicalOk' ? S.medicalOk :
+                evt.check==='morale' ? S.morale :
+                evt.check==='readiness' ? S.readiness :
+                evt.check==='defense' ? S.defense : 0;
+    isGood = val >= evt.threshold;
+  }
+
+  const result = isGood ? evt.good : evt.bad;
+  const fx = isGood ? evt.goodFx : evt.badFx;
+  if(fx) fx(S);
+  recalcStats();
+
+  // show event overlay
+  document.getElementById('evt-title').textContent = evt.title;
+  document.getElementById('evt-desc').textContent = evt.desc;
+  const resEl = document.getElementById('evt-result');
+  resEl.textContent = result;
+  resEl.className = 'evt-result ' + (isGood ? 'pos' : 'neg');
+  document.getElementById('event-overlay').style.display = 'flex';
+  gameSpeed = 0; // pause during event
+  updateTimeButtons();
+}
+
+function closeEvent(){
+  document.getElementById('event-overlay').style.display = 'none';
+  gameSpeed = 1;
+  updateTimeButtons();
+}
+
+// ===================== MESSAGES =====================
+function addMessage(msg){
+  messages.push(msg);
+  if(messages.length>50) messages.shift();
+  document.getElementById('ticker').textContent = msg;
+}
+
+// ===================== RENDERING =====================
+function resize(){
+  const area = document.getElementById('map-area');
+  if(!area) return;
+  const aw = area.clientWidth - 10;
+  const ah = area.clientHeight - 10;
+  CELL = Math.min(Math.floor(aw/MAP_W), Math.floor(ah/MAP_H), 36);
+  CELL = Math.max(CELL, 14);
+  canvas.width = MAP_W * CELL;
+  canvas.height = MAP_H * CELL;
+}
+
+function render(){
+  const w=canvas.width, h=canvas.height;
+  ctx.clearRect(0,0,w,h);
+
+  // draw cells
+  for(let y=0;y<MAP_H;y++) for(let x=0;x<MAP_W;x++){
+    const px=x*CELL, py=y*CELL;
+    const t=terrain[y][x];
+    const n=grassNoise[y][x];
+
+    // ground
+    if(t==='water'){
+      const wave = Math.sin(Date.now()/800 + x*0.5 + y*0.3)*10;
+      ctx.fillStyle = `rgb(${20+wave},${60+wave},${110+wave})`;
+    } else if(t==='tree'){
+      ctx.fillStyle = `rgb(${14+n*15},${50+n*20},${14+n*10})`;
+    } else {
+      ctx.fillStyle = `rgb(${18+n*18},${55+n*25},${18+n*12})`;
+    }
+    ctx.fillRect(px,py,CELL,CELL);
+
+    // tree icon
+    if(t==='tree' && CELL>=18){
+      ctx.font = `${CELL*0.65}px serif`;
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('🌲',px+CELL/2,py+CELL/2);
+    }
+
+    // building
+    const bk = grid[y][x];
+    if(bk){
+      const bd = B[bk];
+      ctx.fillStyle = bd.color;
+      ctx.fillRect(px+1,py+1,CELL-2,CELL-2);
+      // border
+      ctx.strokeStyle = 'rgba(255,255,255,.15)';
+      ctx.lineWidth=1;
+      ctx.strokeRect(px+1,py+1,CELL-2,CELL-2);
+      // highlight top-left
+      ctx.fillStyle = 'rgba(255,255,255,.12)';
+      ctx.fillRect(px+1,py+1,CELL-2,2);
+      ctx.fillRect(px+1,py+1,2,CELL-2);
+      // shadow bottom-right
+      ctx.fillStyle = 'rgba(0,0,0,.2)';
+      ctx.fillRect(px+CELL-3,py+1,2,CELL-2);
+      ctx.fillRect(px+1,py+CELL-3,CELL-2,2);
+      // emoji
+      if(CELL>=20){
+        ctx.font = `${CELL*0.55}px serif`;
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(bd.emoji,px+CELL/2,py+CELL/2+1);
+      }
+    }
+  }
+
+  // grid lines
+  ctx.strokeStyle = 'rgba(52,211,153,.04)';
+  ctx.lineWidth=0.5;
+  for(let x=0;x<=MAP_W;x++){ ctx.beginPath();ctx.moveTo(x*CELL,0);ctx.lineTo(x*CELL,h);ctx.stroke(); }
+  for(let y=0;y<=MAP_H;y++){ ctx.beginPath();ctx.moveTo(0,y*CELL);ctx.lineTo(w,y*CELL);ctx.stroke(); }
+
+  // hover preview
+  if(hoverX>=0 && hoverX<MAP_W && hoverY>=0 && hoverY<MAP_H && state==='playing'){
+    const px=hoverX*CELL, py=hoverY*CELL;
+    if(bulldozeMode){
+      ctx.fillStyle = grid[hoverY][hoverX] ? 'rgba(239,68,68,.3)' : 'rgba(239,68,68,.1)';
+      ctx.fillRect(px,py,CELL,CELL);
+      ctx.strokeStyle='rgba(239,68,68,.6)';ctx.lineWidth=2;ctx.strokeRect(px+1,py+1,CELL-2,CELL-2);
+    } else if(selectedBuild){
+      const valid = canPlace(hoverX,hoverY,selectedBuild);
+      ctx.fillStyle = valid ? 'rgba(52,211,153,.25)' : 'rgba(239,68,68,.25)';
+      ctx.fillRect(px,py,CELL,CELL);
+      ctx.strokeStyle = valid ? 'rgba(52,211,153,.6)' : 'rgba(239,68,68,.6)';
+      ctx.lineWidth=2;ctx.strokeRect(px+1,py+1,CELL-2,CELL-2);
+      // ghost emoji
+      if(valid && CELL>=20){
+        ctx.globalAlpha=0.5;
+        ctx.font=`${CELL*0.55}px serif`;
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(B[selectedBuild].emoji,px+CELL/2,py+CELL/2+1);
+        ctx.globalAlpha=1;
+      }
+    } else {
+      // highlight cell
+      ctx.strokeStyle='rgba(52,211,153,.3)';ctx.lineWidth=1;ctx.strokeRect(px,py,CELL,CELL);
+    }
+  }
+
+  // power/water shortage overlay - pulse buildings with red
+  if(S && (S.powerGen<S.powerUse || S.waterGen<S.waterUse)){
+    const pulse = (Math.sin(Date.now()/300)*0.3+0.3)*0.15;
+    for(let y=0;y<MAP_H;y++) for(let x=0;x<MAP_W;x++){
+      if(grid[y][x] && grid[y][x]!=='road' && grid[y][x]!=='wall'){
+        ctx.fillStyle = `rgba(239,68,68,${pulse})`;
+        ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
+      }
+    }
+  }
+}
+
+// ===================== UI =====================
+function buildCatTabs(){
+  const el = document.getElementById('cat-tabs');
+  el.innerHTML = '';
+  CATS.forEach(c=>{
+    const btn = document.createElement('button');
+    btn.className = 'cat-btn' + (c.id===selectedCat?' active':'');
+    btn.textContent = c.emoji;
+    btn.title = c.name;
+    btn.onclick = ()=>selectCat(c.id);
+    el.appendChild(btn);
+  });
+}
+
+function selectCat(catId){
+  selectedCat = catId;
+  bulldozeMode = catId === 'demolish';
+  if(bulldozeMode) selectedBuild = null;
+  buildCatTabs();
+  buildBuildList();
+}
+
+function buildBuildList(){
+  const el = document.getElementById('bp-list');
+  if(bulldozeMode){
+    el.innerHTML = '<div style="padding:12px;color:#f87171;font-size:.85rem">🔨 點擊地圖上的建築進行拆除<br><br>拆除可回收 40% 建造費用</div>';
+    return;
+  }
+  el.innerHTML = '';
+  Object.entries(B).forEach(([key,b])=>{
+    if(b.cat !== selectedCat) return;
+    const div = document.createElement('div');
+    const affordable = S ? b.cost <= S.budget : true;
+    let limited = false;
+    if(b.limit && S){
+      let count=0;
+      for(let r=0;r<MAP_H;r++) for(let c=0;c<MAP_W;c++) if(grid[r][c]===key) count++;
+      if(count>=b.limit) limited=true;
+    }
+    div.className = 'bp-item' + (selectedBuild===key?' active':'') + (!affordable||limited?' disabled':'');
+    div.innerHTML = `<span class="bp-emoji">${b.emoji}</span><div><div class="bp-name">${b.name}${limited?' (已滿)':''}</div><div class="bp-cost">$${b.cost.toLocaleString()} | 維護 $${b.maint.toLocaleString()}/月</div></div>`;
+    div.onclick = ()=>{ selectedBuild=key; bulldozeMode=false; buildBuildList(); };
+    div.onmouseenter = ()=>showBuildingInfo(key);
+    el.appendChild(div);
+  });
+}
+
+function showBuildingInfo(key){
+  const b = B[key];
+  let html = `<div class="ip-title">${b.emoji} ${b.name}</div>`;
+  html += `<p class="ip-msg">${b.desc}</p>`;
+  html += `<div class="ip-section"><h4>費用</h4>`;
+  html += `<div class="ip-stat"><span class="label">建造</span><span class="val">$${b.cost.toLocaleString()}</span></div>`;
+  html += `<div class="ip-stat"><span class="label">月維護</span><span class="val">$${b.maint.toLocaleString()}</span></div></div>`;
+  html += `<div class="ip-section"><h4>資源</h4>`;
+  if(b.pw<0) html += `<div class="ip-stat"><span class="label">發電</span><span class="val" style="color:#34d399">+${-b.pw}</span></div>`;
+  else if(b.pw>0) html += `<div class="ip-stat"><span class="label">耗電</span><span class="val">${b.pw}</span></div>`;
+  if(b.wt<0) html += `<div class="ip-stat"><span class="label">供水</span><span class="val" style="color:#34d399">+${-b.wt}</span></div>`;
+  else if(b.wt>0) html += `<div class="ip-stat"><span class="label">耗水</span><span class="val">${b.wt}</span></div>`;
+  html += `</div>`;
+  html += `<div class="ip-section"><h4>效果</h4>`;
+  if(b.personnel) html += `<div class="ip-stat"><span class="label">容納人員</span><span class="val">+${b.personnel}</span></div>`;
+  if(b.morale) html += `<div class="ip-stat"><span class="label">士氣</span><span class="val" style="color:#34d399">+${b.morale}</span></div>`;
+  if(b.readiness) html += `<div class="ip-stat"><span class="label">戰備</span><span class="val" style="color:#f59e0b">+${b.readiness}</span></div>`;
+  if(b.defense) html += `<div class="ip-stat"><span class="label">防禦</span><span class="val" style="color:#a78bfa">+${b.defense}</span></div>`;
+  if(b.income) html += `<div class="ip-stat"><span class="label">月收入</span><span class="val" style="color:#34d399">+$${b.income.toLocaleString()}</span></div>`;
+  if(b.serves) html += `<div class="ip-stat"><span class="label">服務人數</span><span class="val">${b.serves} 人</span></div>`;
+  if(b.costReduction) html += `<div class="ip-stat"><span class="label">降低維護</span><span class="val" style="color:#34d399">-${b.costReduction*100}%</span></div>`;
+  html += `</div>`;
+  document.getElementById('info-content').innerHTML = html;
+}
+
+function showBaseInfo(){
+  if(!S) return;
+  let html = `<div class="ip-title">📋 基地概況</div>`;
+  html += `<div class="ip-stat"><span class="label">日期</span><span class="val">第 ${S.year} 年 ${S.month} 月</span></div>`;
+  html += `<div class="ip-stat"><span class="label">評等</span><span class="val" style="color:#fbbf24">${'⭐'.repeat(S.stars)}</span></div>`;
+  html += `<div class="ip-stat"><span class="label">預算</span><span class="val" style="color:${S.budget>=0?'#34d399':'#f87171'}">$${S.budget.toLocaleString()}</span></div>`;
+  html += `<div class="ip-stat"><span class="label">月淨收入</span><span class="val" style="color:${S.netIncome>=0?'#34d399':'#f87171'}">$${S.netIncome>=0?'+':''}${S.netIncome.toLocaleString()}</span></div>`;
+  html += `<div class="ip-stat"><span class="label">人員</span><span class="val">${S.personnel} / ${S.personnelCap}</span></div>`;
+  html += `<div class="ip-stat"><span class="label">電力</span><span class="val" style="color:${S.powerGen>=S.powerUse?'#34d399':'#f87171'}">${S.powerUse} / ${S.powerGen}</span></div>`;
+  html += `<div class="ip-stat"><span class="label">供水</span><span class="val" style="color:${S.waterGen>=S.waterUse?'#34d399':'#f87171'}">${S.waterUse} / ${S.waterGen}</span></div>`;
+  html += `<div class="ip-stat"><span class="label">士氣</span><span class="val">${S.morale}%</span></div>`;
+  html += `<div class="ip-stat"><span class="label">戰備</span><span class="val">${S.readiness}%</span></div>`;
+  html += `<div class="ip-stat"><span class="label">防禦</span><span class="val">${S.defense}</span></div>`;
+
+  // warnings
+  if(S.powerGen<S.powerUse) html += `<p class="ip-danger">⚠️ 電力不足！需要更多發電廠</p>`;
+  if(S.waterGen<S.waterUse) html += `<p class="ip-danger">⚠️ 水源不足！需要更多淨水廠</p>`;
+  if(S.messServes<S.personnel && S.personnel>0) html += `<p class="ip-warn">⚠️ 餐廳不足（供 ${S.messServes}/${S.personnel} 人）</p>`;
+  if(S.medServes<S.personnel && S.personnel>0) html += `<p class="ip-warn">⚠️ 醫療不足（供 ${S.medServes}/${S.personnel} 人）</p>`;
+  if(S.budget<0) html += `<p class="ip-danger">💸 赤字！連續 3 月將被關閉（${S.debtMonths}/3）</p>`;
+  if(S.personnelCap===0) html += `<p class="ip-warn">💡 建造兵營來招募士兵</p>`;
+  if(S.powerGen===0) html += `<p class="ip-warn">💡 建造發電廠來供應電力</p>`;
+  if(S.waterGen===0) html += `<p class="ip-warn">💡 建造淨水廠來供應水源</p>`;
+
+  // messages
+  html += `<div class="ip-section"><h4>最近訊息</h4>`;
+  const recent = messages.slice(-6).reverse();
+  recent.forEach(m=>{ html += `<p style="font-size:.75rem;color:#9ca3af;margin:2px 0">${m}</p>`; });
+  html += `</div>`;
+
+  document.getElementById('info-content').innerHTML = html;
+}
+
+function updateTopBar(){
+  if(!S) return;
+  const rBudget = document.getElementById('r-budget');
+  rBudget.textContent = '$'+S.budget.toLocaleString();
+  rBudget.className = 'rv '+(S.budget>=50000?'good':S.budget>=0?'warn':'bad');
+
+  const rNet = document.getElementById('r-net');
+  rNet.textContent = (S.netIncome>=0?'+':'')+`$${(S.netIncome/1000).toFixed(0)}K`;
+  rNet.className = 'rv '+(S.netIncome>=0?'good':'bad');
+
+  document.getElementById('r-pop').textContent = `${S.personnel}/${S.personnelCap}`;
+  document.getElementById('r-pop').className = 'rv '+(S.personnel>0?'good':'');
+
+  const rPw = document.getElementById('r-power');
+  rPw.textContent = `${S.powerUse}/${S.powerGen}`;
+  rPw.className = 'rv '+(S.powerGen>=S.powerUse?'good':'bad');
+
+  const rWt = document.getElementById('r-water');
+  rWt.textContent = `${S.waterUse}/${S.waterGen}`;
+  rWt.className = 'rv '+(S.waterGen>=S.waterUse?'good':'bad');
+
+  document.getElementById('r-morale').textContent = S.morale+'%';
+  document.getElementById('r-morale').className = 'rv '+(S.morale>=60?'good':S.morale>=40?'warn':'bad');
+
+  document.getElementById('r-ready').textContent = S.readiness+'%';
+  document.getElementById('r-ready').className = 'rv '+(S.readiness>=50?'good':S.readiness>=25?'warn':'bad');
+
+  document.getElementById('r-def').textContent = S.defense;
+  document.getElementById('r-def').className = 'rv '+(S.defense>=40?'good':S.defense>=20?'warn':'bad');
+
+  document.getElementById('r-star').textContent = '⭐'.repeat(S.stars);
+  document.getElementById('date-display').textContent = `第 ${S.year} 年 ${S.month} 月`;
+}
+
+function updateTimeButtons(){
+  document.querySelectorAll('.time-btn').forEach(btn=>{
+    btn.classList.toggle('active', parseInt(btn.dataset.speed)===gameSpeed);
+  });
+}
+
+// ===================== INPUT =====================
+canvas.addEventListener('mousemove', e=>{
+  const rect = canvas.getBoundingClientRect();
+  hoverX = Math.floor((e.clientX - rect.left) / CELL);
+  hoverY = Math.floor((e.clientY - rect.top) / CELL);
+});
+
+canvas.addEventListener('mouseleave', ()=>{ hoverX=-1; hoverY=-1; });
+
+canvas.addEventListener('click', e=>{
+  if(state!=='playing') return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = Math.floor((e.clientX - rect.left) / CELL);
+  const my = Math.floor((e.clientY - rect.top) / CELL);
+  if(mx<0||mx>=MAP_W||my<0||my>=MAP_H) return;
+
+  if(bulldozeMode){
+    removeBuilding(mx, my);
+    buildBuildList();
+  } else if(selectedBuild){
+    placeBuilding(mx, my, selectedBuild);
+    buildBuildList();
+  } else {
+    // show info for clicked cell
+    const bk = grid[my][mx];
+    if(bk) showBuildingInfo(bk);
+    else showBaseInfo();
+  }
+});
+
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+// right-click drag for panning - not needed with fit-to-screen approach
+
+// keyboard
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){
+    selectedBuild=null; bulldozeMode=false;
+    buildBuildList(); buildCatTabs();
+  }
+  if(e.key==='1') selectCat('command');
+  if(e.key==='2') selectCat('housing');
+  if(e.key==='3') selectCat('training');
+  if(e.key==='4') selectCat('support');
+  if(e.key==='5') selectCat('infra');
+  if(e.key==='6') selectCat('defense');
+  if(e.key==='0'||e.key==='Delete') selectCat('demolish');
+  if(e.key===' '){ e.preventDefault(); gameSpeed=gameSpeed===0?1:0; updateTimeButtons(); }
+});
+
+// time controls
+document.querySelectorAll('.time-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    gameSpeed = parseInt(btn.dataset.speed);
+    updateTimeButtons();
+  });
+});
+
+// touch support for canvas
+let touchStartPos = null;
+canvas.addEventListener('touchstart', e=>{
+  const t = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  touchStartPos = { x: t.clientX, y: t.clientY };
+  hoverX = Math.floor((t.clientX-rect.left)/CELL);
+  hoverY = Math.floor((t.clientY-rect.top)/CELL);
+  e.preventDefault();
+}, {passive:false});
+
+canvas.addEventListener('touchend', e=>{
+  if(!touchStartPos || state!=='playing') return;
+  if(hoverX>=0 && hoverX<MAP_W && hoverY>=0 && hoverY<MAP_H){
+    if(bulldozeMode){
+      removeBuilding(hoverX, hoverY);
+    } else if(selectedBuild){
+      placeBuilding(hoverX, hoverY, selectedBuild);
+    }
+    buildBuildList();
+  }
+  touchStartPos = null;
+  e.preventDefault();
+}, {passive:false});
+
+// ===================== GAME LIFECYCLE =====================
+function initState(){
+  S = {
+    budget: 500000,
+    personnel: 0,
+    personnelCap: 0,
+    powerGen: 0, powerUse: 0,
+    waterGen: 0, waterUse: 0,
+    morale: 50, readiness: 0, defense: 0,
+    moraleBonus: 0, readinessBonus: 0,
+    totalMaint: 0, extraIncome: 0, netIncome: BASE_INCOME,
+    messServes: 0, medServes: 0, medicalOk: 0,
+    year: 1, month: 1,
+    totalMonths: 0,
+    debtMonths: 0,
+    stars: 1,
+  };
+  maxPop = 0; maxStars = 1;
+  messages = [];
+  gameSpeed = 1;
+  monthTimer = 0;
+  selectedBuild = null;
+  bulldozeMode = false;
+  selectedCat = 'housing';
+}
+
+function startGame(){
+  generateTerrain();
+  grid = Array.from({length:MAP_H}, ()=>Array(MAP_W).fill(null));
+  initState();
+
+  // place command center at center
+  const cx=Math.floor(MAP_W/2), cy=Math.floor(MAP_H/2);
+  grid[cy][cx] = 'command';
+
+  // place some roads around it
+  for(let dx=-2;dx<=2;dx++){ if(dx!==0) grid[cy][cx+dx]='road'; }
+  for(let dy=-2;dy<=2;dy++){ if(dy!==0) grid[cy+dy][cx]='road'; }
+
+  recalcStats();
+
+  state = 'playing';
+  document.getElementById('app').style.display = 'grid';
+  document.getElementById('menu-overlay').style.display = 'none';
+  document.getElementById('go-overlay').style.display = 'none';
+  document.getElementById('event-overlay').style.display = 'none';
+
+  resize();
+  buildCatTabs();
+  buildBuildList();
+  showBaseInfo();
+  updateTopBar();
+  updateTimeButtons();
+  addMessage('🏛️ 指揮中心已就位！先蓋發電廠和淨水廠吧！');
+
+  if(!animFrame){ lastTime=performance.now(); loop(lastTime); }
+}
+
+function showMenu(){
+  state = 'menu';
+  document.getElementById('menu-overlay').style.display = 'flex';
+  document.getElementById('go-overlay').style.display = 'none';
+}
+
+function onGameOver(reason){
+  document.getElementById('go-months').textContent = S.totalMonths;
+  document.getElementById('go-pop').textContent = maxPop;
+  document.getElementById('go-star').textContent = '⭐'.repeat(maxStars);
+  document.getElementById('go-reason').textContent = reason;
+  document.getElementById('go-overlay').style.display = 'flex';
+}
+
+// ===================== GAME LOOP =====================
+const MONTH_DURATION = 5000; // ms per month at 1x speed
+
+function loop(t){
+  animFrame = requestAnimationFrame(loop);
+  const dt = Math.min(t - lastTime, 100);
+  lastTime = t;
+
+  if(state==='playing' && gameSpeed > 0){
+    monthTimer += dt * gameSpeed;
+    if(monthTimer >= MONTH_DURATION){
+      monthTimer -= MONTH_DURATION;
+      simulateMonth();
+      buildBuildList();
+      updateTopBar();
+      showBaseInfo();
+    }
+  }
+
+  render();
+
+  // periodically update info panel
+  if(state==='playing' && Math.floor(t/2000)!==Math.floor((t-dt)/2000)){
+    showBaseInfo();
+    updateTopBar();
+  }
+}
+
+// ===================== INIT =====================
+window.addEventListener('resize', ()=>{ if(state==='playing') resize(); });
+</script>
+</body>
+</html>
